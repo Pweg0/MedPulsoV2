@@ -260,8 +260,9 @@ Vale ler antes de mexer nesses arquivos de novo — todos pareciam
 ## A fazer / pendente
 
 **Bloqueado em você (usuário)**:
-- [ ] Rodar `supabase/migrations/0003_explicacao_ia.sql` no SQL Editor
-- [ ] Me passar `GEMINI_API_KEY` (Google AI Studio)
+- [x] Rodar `supabase/migrations/0003_explicacao_ia.sql` no SQL Editor — aplicada
+- [x] Me passar `GEMINI_API_KEY` (Google AI Studio) — em `.env.local` e no
+      Vercel (production/preview/development)
 - [ ] Confirmar se e-mail de confirmação continua desativado no Supabase
       (Authentication → Providers → Email → "Confirm email")
 - [ ] Decidir se quer configurar SMTP próprio (Resend ou similar) antes de
