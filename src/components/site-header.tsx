@@ -27,6 +27,14 @@ export function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
+          {user && (
+            <Link
+              href="/estudar"
+              className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+            >
+              Estudar
+            </Link>
+          )}
           {links.map((l) => (
             <Link
               key={l.href}
@@ -77,6 +85,15 @@ export function SiteHeader() {
       {open && (
         <div className="border-t border-border bg-bg md:hidden">
           <Container className="flex flex-col gap-1 py-4">
+            {user && (
+              <Link
+                href="/estudar"
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary hover:bg-bg-inset hover:text-text-primary"
+              >
+                Estudar
+              </Link>
+            )}
             {links.map((l) => (
               <Link
                 key={l.href}

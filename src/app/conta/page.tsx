@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { CircleUser, Calendar, ShieldCheck } from "lucide-react";
+import { CircleUser, Calendar, ShieldCheck, ArrowRight } from "lucide-react";
 import { Container } from "@/components/ui/container";
+import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 
 export const metadata: Metadata = {
@@ -44,10 +45,18 @@ export default async function ContaPage() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-dashed border-border-strong p-5 text-sm text-text-tertiary">
-          O banco de questões, o dashboard de desempenho e a trilha de
-          estudo com IA ainda estão em construção. Sua conta já está
-          pronta para quando eles chegarem.
+        <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-accent/30 bg-accent/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-text-secondary">
+            Já dá pra treinar com o banco de questões.
+          </p>
+          <Button href="/estudar" size="sm" className="shrink-0">
+            Resolver questões <ArrowRight size={15} />
+          </Button>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-dashed border-border-strong p-5 text-sm text-text-tertiary">
+          O dashboard de desempenho e a trilha de estudo com IA ainda
+          estão em construção.
         </div>
       </div>
     </Container>
