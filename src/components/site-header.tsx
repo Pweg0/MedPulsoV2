@@ -50,7 +50,7 @@ export function SiteHeader() {
           <ThemeToggle />
           {user ? (
             <>
-              <Button href="/conta" variant="ghost" size="sm">
+              <Button href="/dashboard" variant="ghost" size="sm">
                 {user.email}
               </Button>
               <Button variant="secondary" size="sm" onClick={signOut}>
@@ -107,7 +107,7 @@ export function SiteHeader() {
             <div className="mt-2 flex flex-col gap-2 border-t border-border pt-4">
               {user ? (
                 <>
-                  <Button href="/conta" variant="secondary" size="sm">
+                  <Button href="/dashboard" variant="secondary" size="sm">
                     {user.email}
                   </Button>
                   <Button variant="ghost" size="sm" onClick={signOut}>

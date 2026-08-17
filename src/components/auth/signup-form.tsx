@@ -54,7 +54,7 @@ export function SignupForm() {
 
     if (data.session) {
       setStatus("done");
-      router.push("/conta");
+      router.push("/dashboard");
       router.refresh();
       return;
     }

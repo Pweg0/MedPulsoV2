@@ -45,7 +45,7 @@ export function LoginForm() {
     }
 
     setStatus("done");
-    router.push("/conta");
+    router.push("/dashboard");
     router.refresh();
   }
 

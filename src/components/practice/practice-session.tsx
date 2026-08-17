@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useMounted } from "@/lib/use-mounted";
+import { FormattedText } from "@/components/practice/formatted-text";
 import type { Questao } from "@/lib/supabase/questoes";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -22,14 +23,7 @@ function shuffle<T>(arr: T[]): T[] {
 export function PracticeSession({ questoes }: { questoes: Questao[] }) {
   const { user } = useAuth();
   const mounted = useMounted();
-  const [order, setOrder] = useState(questoes);
-  const [shuffled, setShuffled] = useState(false);
-
-  if (mounted && !shuffled) {
-    setOrder(shuffle(questoes));
-    setShuffled(true);
-  }
-
+  const [order] = useState(() => shuffle(questoes));
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -64,6 +58,20 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
   function handleNext() {
     setSelected(null);
     setIndex((i) => i + 1);
+  }
+
+  if (!mounted) {
+    return (
+      <div className="animate-pulse rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8">
+        <div className="h-5 w-32 rounded-full bg-bg-inset" />
+        <div className="mt-6 h-16 rounded-lg bg-bg-inset" />
+        <div className="mt-6 flex flex-col gap-3">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-12 rounded-xl bg-bg-inset" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -104,9 +112,10 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
             )}
           </div>
 
-          <p className="mt-5 text-base leading-relaxed text-text-primary">
-            {questao.enunciado}
-          </p>
+          <FormattedText
+            text={questao.enunciado}
+            className="mt-5 text-base leading-relaxed text-text-primary"
+          />
 
           <div className="mt-6 flex flex-col gap-3">
             {questao.alternativas.map((alt) => {
@@ -156,14 +165,17 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                   </button>
 
                   {showState && alt.explicacao && (isSelected || alt.correta) && (
-                    <motion.p
+                    <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       transition={{ duration: 0.25 }}
-                      className="ml-9 mt-2 overflow-hidden text-xs leading-relaxed text-text-tertiary"
+                      className="overflow-hidden"
                     >
-                      {alt.explicacao}
-                    </motion.p>
+                      <FormattedText
+                        text={alt.explicacao}
+                        className="ml-9 mt-2 text-xs leading-relaxed text-text-tertiary"
+                      />
+                    </motion.div>
                   )}
                 </div>
               );
@@ -177,12 +189,11 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
               transition={{ duration: 0.3 }}
               className="mt-5 overflow-hidden rounded-2xl border border-accent/30 bg-accent/10 p-4"
             >
-              <p className="text-sm leading-relaxed text-text-secondary">
-                <span className="font-semibold text-text-primary">
-                  Resumo:
-                </span>{" "}
-                {questao.comentario_geral}
-              </p>
+              <p className="text-sm font-semibold text-text-primary">Resumo</p>
+              <FormattedText
+                text={questao.comentario_geral}
+                className="mt-1.5 text-sm leading-relaxed text-text-secondary"
+              />
             </motion.div>
           )}
 

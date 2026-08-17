@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Fraunces, Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
-import { SiteHeader } from "@/components/site-header";
-import { SiteFooter } from "@/components/site-footer";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import "./globals.css";
 
@@ -45,11 +43,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           defaultTheme="dark"
           enableSystem={false}
         >
-          <AuthProvider initialUser={user}>
-            <SiteHeader />
-            <main className="flex-1">{children}</main>
-            <SiteFooter />
-          </AuthProvider>
+          <AuthProvider initialUser={user}>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>
