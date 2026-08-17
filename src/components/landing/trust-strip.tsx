@@ -3,7 +3,7 @@ import { Container } from "@/components/ui/container";
 const stats = [
   { value: "12.000+", label: "questões comentadas" },
   { value: "18", label: "grandes áreas mapeadas" },
-  { value: "3", label: "provas cobertas — ENARE, ENAMED, Revalida" },
+  { value: "27", label: "estados cobertos — residência + Revalida" },
   { value: "100%", label: "explicações com base em diretrizes do MS" },
 ];
 

@@ -25,7 +25,7 @@ export function Hero() {
             className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-bg-inset px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-secondary"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            ENARE · ENAMED · Revalida
+            Residência médica em todo o Brasil · Revalida
           </motion.div>
 
           <motion.h1
