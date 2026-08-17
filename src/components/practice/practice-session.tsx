@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, ArrowRight, Loader2 } from "lucide-react";
+import { Check, X, ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useMounted } from "@/lib/use-mounted";
-import { FormattedText } from "@/components/practice/formatted-text";
-import type { Questao } from "@/lib/supabase/questoes";
+import { FormattedText, decodeEntities } from "@/components/practice/formatted-text";
+import type { Questao, Alternativa } from "@/lib/supabase/questoes";
+import type { ExplicacaoIA } from "@/lib/gemini";
 
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -18,6 +19,22 @@ function shuffle<T>(arr: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
+}
+
+function altExplicacao(alt: Alternativa, ai?: ExplicacaoIA) {
+  if (ai) {
+    return alt.correta
+      ? ai.por_que_correta
+      : ai.refutacoes.find((r) => r.letra === alt.letra)?.erro || alt.explicacao;
+  }
+  return alt.explicacao;
+}
+
+function montarResumo(ai: ExplicacaoIA) {
+  const partes: string[] = [];
+  if (ai.pegadinha) partes.push(ai.pegadinha);
+  if (ai.nota_de_atualizacao) partes.push(`Atualização: ${ai.nota_de_atualizacao}`);
+  return partes.join("\n\n");
 }
 
 export function PracticeSession({ questoes }: { questoes: Questao[] }) {
@@ -29,13 +46,21 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
   const [saving, setSaving] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [aiExplicacoes, setAiExplicacoes] = useState<Record<string, ExplicacaoIA>>({});
+  const [explicando, setExplicando] = useState(false);
+  const [aiErro, setAiErro] = useState<string | null>(null);
 
   const questao = order[index % order.length];
   const answered = selected !== null;
+  const ai = aiExplicacoes[questao.id];
+  const temExplicacao =
+    !!ai || questao.alternativas.some((a) => a.explicacao?.trim());
+  const resumoTexto = ai ? montarResumo(ai) : questao.comentario_geral;
 
   async function handleSelect(letra: string) {
     if (answered) return;
     setSelected(letra);
+    setAiErro(null);
 
     const alt = questao.alternativas.find((a) => a.letra === letra);
     const acertou = alt?.correta ?? false;
@@ -55,8 +80,28 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
     }
   }
 
+  async function handleGerarExplicacao() {
+    setExplicando(true);
+    setAiErro(null);
+    try {
+      const res = await fetch("/api/explicar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ questaoId: questao.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.erro || "Falha ao gerar explicação.");
+      setAiExplicacoes((prev) => ({ ...prev, [questao.id]: json.explicacao }));
+    } catch (e) {
+      setAiErro(e instanceof Error ? e.message : "Falha ao gerar explicação.");
+    } finally {
+      setExplicando(false);
+    }
+  }
+
   function handleNext() {
     setSelected(null);
+    setAiErro(null);
     setIndex((i) => i + 1);
   }
 
@@ -121,6 +166,7 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
             {questao.alternativas.map((alt) => {
               const isSelected = alt.letra === selected;
               const showState = answered;
+              const explicacaoTexto = altExplicacao(alt, ai);
 
               return (
                 <div key={alt.letra}>
@@ -161,10 +207,12 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                         alt.letra
                       )}
                     </span>
-                    <span className="text-text-secondary">{alt.texto}</span>
+                    <span className="text-text-secondary">
+                      {decodeEntities(alt.texto)}
+                    </span>
                   </button>
 
-                  {showState && alt.explicacao && (isSelected || alt.correta) && (
+                  {showState && explicacaoTexto && (isSelected || alt.correta) && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
@@ -172,7 +220,7 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                       className="overflow-hidden"
                     >
                       <FormattedText
-                        text={alt.explicacao}
+                        text={explicacaoTexto}
                         className="ml-9 mt-2 text-xs leading-relaxed text-text-tertiary"
                       />
                     </motion.div>
@@ -182,7 +230,45 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
             })}
           </div>
 
-          {answered && questao.comentario_geral && (
+          {answered && !temExplicacao && (
+            <div className="mt-5 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-border-strong p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="flex items-center gap-2 text-xs text-text-tertiary">
+                <Sparkles size={14} className="text-accent" />
+                Essa questão ainda não tem explicação.
+              </p>
+              <Button
+                onClick={handleGerarExplicacao}
+                disabled={explicando}
+                size="sm"
+                variant="secondary"
+              >
+                {explicando ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Sparkles size={14} />
+                )}
+                Gerar explicação com IA
+              </Button>
+            </div>
+          )}
+
+          {aiErro && (
+            <p className="mt-3 text-xs text-coral-500">{aiErro}</p>
+          )}
+
+          {answered && ai?.discordo_do_gabarito && (
+            <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <TriangleAlert size={16} className="mt-0.5 shrink-0 text-amber-500" />
+              <p className="text-sm leading-relaxed text-text-secondary">
+                <span className="font-semibold text-text-primary">
+                  A IA discorda do gabarito:
+                </span>{" "}
+                {ai.motivo_discordancia || "questão possivelmente ambígua ou desatualizada."}
+              </p>
+            </div>
+          )}
+
+          {answered && resumoTexto && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -191,7 +277,7 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
             >
               <p className="text-sm font-semibold text-text-primary">Resumo</p>
               <FormattedText
-                text={questao.comentario_geral}
+                text={resumoTexto}
                 className="mt-1.5 text-sm leading-relaxed text-text-secondary"
               />
             </motion.div>

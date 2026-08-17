@@ -14,5 +14,7 @@ export type Questao = {
   alternativas: Alternativa[];
   comentario_geral: string | null;
   fonte_url: string | null;
+  explicacao_ia?: unknown | null;
+  explicacao_gerada_em?: string | null;
   created_at: string;
 };
