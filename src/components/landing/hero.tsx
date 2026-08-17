@@ -5,7 +5,7 @@ import { ArrowRight, CircleCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { PulseLine } from "@/components/pulse-line";
-import { PerformanceCard } from "@/components/landing/performance-card";
+import { QuestionCard } from "@/components/landing/question-card";
 
 export function Hero() {
   return (
@@ -85,7 +85,7 @@ export function Hero() {
         </div>
 
         <div className="flex justify-center lg:justify-end">
-          <PerformanceCard />
+          <QuestionCard className="max-w-md" />
         </div>
       </Container>
     </section>

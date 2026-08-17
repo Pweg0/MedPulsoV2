@@ -3,6 +3,7 @@
 import { motion, type Variants } from "framer-motion";
 import { BookOpenCheck, ShieldCheck, LineChart, Brain } from "lucide-react";
 import { Container } from "@/components/ui/container";
+import { PerformanceCard } from "@/components/landing/performance-card";
 import { cn } from "@/lib/utils";
 
 const cardVariants: Variants = {
@@ -108,15 +109,7 @@ export function Features() {
             desc="Gráficos detalhados por área, evolução ao longo do tempo e comparação entre tentativas — seu progresso, medido."
             className="md:col-span-2"
           >
-            <div className="mt-6 flex items-end gap-2">
-              {[38, 61, 54, 76, 82, 45, 69].map((v, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-t-md bg-accent/20 group-hover:bg-accent/30 transition-colors"
-                  style={{ height: `${v}px` }}
-                />
-              ))}
-            </div>
+            <PerformanceCard className="mt-6 max-w-full" />
           </Card>
         </div>
       </Container>
