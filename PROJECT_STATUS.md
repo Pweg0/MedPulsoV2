@@ -113,12 +113,20 @@ chama Gemini → grava de volta na tabela via `service_role`
 (`src/lib/supabase/admin.ts`) → nunca regenera a mesma questão duas vezes
 (cache compartilhado entre todos os usuários, não por usuário).
 
-**Bloqueado até o usuário**: rodar a migration
-`supabase/migrations/0003_explicacao_ia.sql` (adiciona colunas
-`explicacao_ia jsonb` e `explicacao_gerada_em`) e passar a
-`GEMINI_API_KEY` (Google AI Studio) pra mim configurar em `.env.local` +
-Vercel. **Sem isso a rota responde com erro gracioso "ainda não
-configurada", não quebra o site.**
+**Status: funcionando de ponta a ponta**, testado em dev em 2026-08-17
+(gerar → grava em `questoes.explicacao_ia` via service_role → reexibe do
+cache sem chamar a API de novo). Migration `0003_explicacao_ia.sql`
+aplicada, `GEMINI_API_KEY` configurada em `.env.local` + Vercel
+(production/preview/development).
+
+**Nota**: o model default original (`gemini-2.5-flash`) parou de
+responder pra essa API key (`404 — no longer available to new users`).
+Trocado pro default pra `gemini-3.6-flash` em `src/lib/gemini.ts`
+(confirmado que aceita `responseSchema` estruturado igual o anterior).
+Se isso voltar a quebrar no futuro, rodar
+`GET https://generativelanguage.googleapis.com/v1beta/models?key=...`
+pra ver quais models "flash" com `generateContent` a key atual tem
+acesso.
 
 ### `/estudar` — resolver questões (`src/components/practice/practice-session.tsx`)
 Página protegida, embaralha as questões client-side, responde, revela
