@@ -1,19 +1,22 @@
-// Usage: node --env-file=.env.local scripts/import-questions.mjs path/to/questions.json
+// Usage: node --env-file=.env.local scripts/import-questions.mjs path/to/questoes.json
 //
-// Expects a JSON array of questions shaped like:
+// Espera um array de questões nesse formato:
 // {
-//   "area": "Cardiologia",
-//   "subarea": "Síndrome coronariana aguda",   // optional
-//   "banca": "INEP",                            // optional
-//   "prova": "ENAMED 2024",                      // optional
-//   "ano": 2024,                                 // optional
-//   "statement": "texto da questão...",
-//   "alternatives": [
-//     { "letter": "A", "text": "...", "correct": false, "explanation": "..." },
-//     { "letter": "B", "text": "...", "correct": true,  "explanation": "..." }
+//   "instituicao": "AC - Hospital Oftalmológico do Acre - HOA",
+//   "disciplina": "Cirurgia",         // opcional
+//   "ano": 2018,                       // opcional
+//   "enunciado": "texto da questão...",
+//   "alternativas": [
+//     { "letra": "A", "texto": "...", "correta": false, "explicacao": "..." },
+//     { "letra": "B", "texto": "...", "correta": true,  "explicacao": "..." }
 //   ],
-//   "sourceUrl": "https://..."                   // optional, for provenance
+//   "comentario_geral": "...",         // opcional
+//   "fonte_url": "https://..."         // opcional, link do PDF oficial
 // }
+//
+// Reimportar o mesmo arquivo é seguro: cada questão gera um fingerprint
+// (instituicao + ano + enunciado) com UNIQUE no banco, então duplicatas
+// são ignoradas em vez de inseridas de novo.
 
 import { readFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
@@ -36,32 +39,31 @@ if (!url || !serviceKey) {
 
 function validate(q, i) {
   const errors = [];
-  if (!q.area) errors.push("area ausente");
-  if (!q.statement) errors.push("statement ausente");
-  if (!Array.isArray(q.alternatives) || q.alternatives.length < 2) {
-    errors.push("alternatives precisa ter ao menos 2 itens");
+  if (!q.enunciado) errors.push("enunciado ausente");
+  if (!Array.isArray(q.alternativas) || q.alternativas.length < 2) {
+    errors.push("alternativas precisa ter ao menos 2 itens");
   } else {
-    const correctCount = q.alternatives.filter((a) => a.correct === true).length;
-    if (correctCount !== 1) {
-      errors.push(`deveria ter exatamente 1 alternativa correta, encontrou ${correctCount}`);
+    const corretas = q.alternativas.filter((a) => a.correta === true).length;
+    if (corretas !== 1) {
+      errors.push(`deveria ter exatamente 1 alternativa correta, encontrou ${corretas}`);
     }
-    q.alternatives.forEach((a, ai) => {
-      if (!a.letter) errors.push(`alternativa[${ai}] sem letter`);
-      if (!a.text) errors.push(`alternativa[${ai}] sem text`);
+    q.alternativas.forEach((a, ai) => {
+      if (!a.letra) errors.push(`alternativa[${ai}] sem letra`);
+      if (!a.texto) errors.push(`alternativa[${ai}] sem texto`);
     });
   }
   return errors.map((e) => `questão ${i}: ${e}`);
 }
 
 const raw = await readFile(filePath, "utf-8");
-const questions = JSON.parse(raw);
+const questoes = JSON.parse(raw);
 
-if (!Array.isArray(questions)) {
+if (!Array.isArray(questoes)) {
   console.error("O JSON precisa ser um array de questões.");
   process.exit(1);
 }
 
-const allErrors = questions.flatMap(validate);
+const allErrors = questoes.flatMap(validate);
 if (allErrors.length > 0) {
   console.error(`${allErrors.length} erro(s) de validação — nada foi importado:\n`);
   allErrors.slice(0, 50).forEach((e) => console.error(" - " + e));
@@ -69,32 +71,34 @@ if (allErrors.length > 0) {
   process.exit(1);
 }
 
-const rows = questions.map((q) => ({
-  area: q.area,
-  subarea: q.subarea ?? null,
-  banca: q.banca ?? null,
-  prova: q.prova ?? null,
+const rows = questoes.map((q) => ({
+  instituicao: q.instituicao ?? null,
+  disciplina: q.disciplina ?? null,
   ano: q.ano ?? null,
-  statement: q.statement,
-  alternatives: q.alternatives,
-  source_url: q.sourceUrl ?? null,
+  enunciado: q.enunciado,
+  alternativas: q.alternativas,
+  comentario_geral: q.comentario_geral ?? null,
+  fonte_url: q.fonte_url ?? null,
 }));
 
 const supabase = createClient(url, serviceKey);
 
 const BATCH_SIZE = 500;
-let inserted = 0;
+let processed = 0;
 
 for (let i = 0; i < rows.length; i += BATCH_SIZE) {
   const batch = rows.slice(i, i + BATCH_SIZE);
-  const { error } = await supabase.from("questions").insert(batch);
+  const { error } = await supabase
+    .from("questoes")
+    .upsert(batch, { onConflict: "fingerprint", ignoreDuplicates: true });
+
   if (error) {
     console.error(`Erro ao inserir lote ${i / BATCH_SIZE + 1}:`, error.message);
-    console.error(`${inserted} questões já foram inseridas antes do erro.`);
+    console.error(`${processed} questões já foram processadas antes do erro.`);
     process.exit(1);
   }
-  inserted += batch.length;
-  console.log(`${inserted}/${rows.length} importadas...`);
+  processed += batch.length;
+  console.log(`${processed}/${rows.length} processadas...`);
 }
 
-console.log(`Concluído: ${inserted} questões importadas.`);
+console.log(`Concluído: ${processed} questões processadas (duplicatas foram ignoradas automaticamente).`);
