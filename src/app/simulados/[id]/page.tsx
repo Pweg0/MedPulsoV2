@@ -58,13 +58,21 @@ export default async function SimuladoPage({
 
   return (
     <Container className="max-w-3xl py-10">
-      <Link
-        href="/simulados"
-        className="flex items-center gap-1.5 font-mono text-xs text-text-tertiary hover:text-accent"
-      >
-        <ArrowLeft size={14} />
-        Todos os simulados
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/simulados"
+          className="flex items-center gap-1.5 font-mono text-xs text-text-tertiary hover:text-accent"
+        >
+          <ArrowLeft size={14} />
+          Todos os simulados
+        </Link>
+        <Link
+          href={`/simulados/${id}/imagens`}
+          className="font-mono text-xs text-text-tertiary hover:text-accent"
+        >
+          Gerenciar imagens
+        </Link>
+      </div>
 
       <SimuladoSession
         simulado={simulado as Simulado}

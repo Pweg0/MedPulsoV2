@@ -18,6 +18,7 @@ export type SimuladoQuestao = {
   alternativas: Alternativa[];
   anulada: boolean;
   tem_figura: boolean;
+  imagem_url: string | null;
   disciplina: string | null;
   explicacao_ia?: unknown | null;
   explicacao_gerada_em?: string | null;

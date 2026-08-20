@@ -240,7 +240,7 @@ export function buildPrompt(q: QuestaoParaExplicar) {
   return prompt;
 }
 
-const INDEXAR_PROMPT = `Você recebeu dois PDFs: (1) o caderno de questões de uma prova objetiva de
+export const INDEXAR_PROMPT = `Você recebeu dois PDFs: (1) o caderno de questões de uma prova objetiva de
 residência médica/Revalida, e (2) o gabarito definitivo oficial dessa mesma prova.
 
 Extraia TODAS as questões do caderno, na ordem original, e cruze cada uma com o
@@ -314,28 +314,44 @@ export async function indexarProvaComGemini({
   const model = process.env.GEMINI_INDEXADOR_MODEL || process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: INDEXAR_PROMPT },
-            { inlineData: { mimeType: "application/pdf", data: provaBase64 } },
-            { inlineData: { mimeType: "application/pdf", data: gabaritoBase64 } },
-          ],
+  // Sem timeout, um travamento da API deixa o fetch pendurado pra sempre e o
+  // caller (rota HTTP) nunca recebe erro pra acionar o fallback.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 130_000);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: INDEXAR_PROMPT },
+              { inlineData: { mimeType: "application/pdf", data: provaBase64 } },
+              { inlineData: { mimeType: "application/pdf", data: gabaritoBase64 } },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: PROVA_SCHEMA,
+          temperature: 0.1,
+          maxOutputTokens: 65536,
         },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: PROVA_SCHEMA,
-        temperature: 0.1,
-        maxOutputTokens: 65536,
-      },
-    }),
-  });
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Gemini não respondeu a tempo (timeout).");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const body = await res.text();

@@ -229,6 +229,15 @@ export function SimuladoSession({
                 className="mt-4 text-base leading-relaxed text-text-primary"
               />
 
+              {questao.imagem_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={questao.imagem_url}
+                  alt={`Figura da questão ${questao.numero}`}
+                  className="mt-4 max-h-96 w-full rounded-xl border border-border-strong object-contain"
+                />
+              )}
+
               <div className="mt-6 flex flex-col gap-3">
                 {questao.alternativas.map((alt) => {
                   const isSelected = alt.letra === selecionada;

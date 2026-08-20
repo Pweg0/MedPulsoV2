@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { indexarProvaComGemini } from "@/lib/gemini";
+import { indexarProvaComClaude } from "@/lib/claude";
 
 // Indexar uma prova de 100 questões levou ~135s em teste real — Vercel
 // Hobby historicamente limita bem menos que isso (10-60s). Se der timeout
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { erro: "Indexação por IA ainda não configurada neste ambiente." },
       { status: 400 }
@@ -47,7 +48,29 @@ export async function POST(request: NextRequest) {
       fileParaBase64(prova),
       fileParaBase64(gabarito),
     ]);
-    resultado = await indexarProvaComGemini({ provaBase64, gabaritoBase64 });
+
+    const erros: string[] = [];
+
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        resultado = await indexarProvaComGemini({ provaBase64, gabaritoBase64 });
+      } catch (e) {
+        erros.push(`Gemini — ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    // Fallback: Gemini ausente, falhou ou travou (timeout).
+    if (!resultado && process.env.ANTHROPIC_API_KEY) {
+      try {
+        resultado = await indexarProvaComClaude({ provaBase64, gabaritoBase64 });
+      } catch (e) {
+        erros.push(`Claude — ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    if (!resultado) {
+      throw new Error(erros.join(" | ") || "Nenhum provedor de IA configurado.");
+    }
   } catch (e) {
     return NextResponse.json(
       { erro: e instanceof Error ? e.message : "Falha ao indexar a prova." },
