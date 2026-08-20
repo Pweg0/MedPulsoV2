@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpenCheck,
+  FileText,
   GraduationCap,
   CalendarDays,
   Layers,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, live: true },
   { href: "/estudar", label: "Questões", icon: BookOpenCheck, live: true },
+  { href: "/simulados", label: "Simulados", icon: FileText, live: true },
   { href: "#", label: "Material de Apoio", icon: GraduationCap, live: false },
   { href: "#", label: "Cronograma", icon: CalendarDays, live: false },
   { href: "#", label: "Flashcards", icon: Layers, live: false },

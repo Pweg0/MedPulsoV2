@@ -3,7 +3,11 @@ import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { explicarQuestao, type ExplicacaoIA } from "@/lib/gemini";
+import { explicarQuestaoGroq } from "@/lib/groq";
 import type { Alternativa } from "@/lib/supabase/questoes";
+
+const TABELAS = { questoes: "questoes", simulado: "simulado_questoes" } as const;
+type Fonte = keyof typeof TABELAS;
 
 function montarComentario(explicacao: ExplicacaoIA) {
   const partes: string[] = [];
@@ -20,14 +24,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   }
 
-  const { questaoId } = await request.json();
+  const { questaoId, fonte: fonteInput } = await request.json();
   if (!questaoId) {
     return NextResponse.json({ erro: "questaoId ausente." }, { status: 400 });
   }
+  const fonte: Fonte = fonteInput === "simulado" ? "simulado" : "questoes";
+  const tabela = TABELAS[fonte];
 
   const supabase = await createClient();
   const { data: questao, error: fetchError } = await supabase
-    .from("questoes")
+    .from(tabela)
     .select("*")
     .eq("id", questaoId)
     .single();
@@ -40,28 +46,49 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ explicacao: questao.explicacao_ia, cache: true });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) {
     return NextResponse.json(
       { erro: "Explicação por IA ainda não configurada neste ambiente." },
       { status: 400 }
     );
   }
 
-  let explicacao: ExplicacaoIA;
-  try {
-    explicacao = await explicarQuestao({
-      instituicao: questao.instituicao,
-      ano: questao.ano,
-      enunciado: questao.enunciado,
-      alternativas: (questao.alternativas as Alternativa[]).map((a) => ({
-        letra: a.letra,
-        texto: a.texto,
-        correta: a.correta,
-      })),
-    });
-  } catch (e) {
+  const questaoInput = {
+    instituicao: questao.instituicao ?? null,
+    ano: questao.ano ?? null,
+    enunciado: questao.enunciado,
+    alternativas: (questao.alternativas as Alternativa[]).map((a) => ({
+      letra: a.letra,
+      texto: a.texto,
+      correta: a.correta,
+    })),
+    temFigura: !!questao.tem_figura,
+  };
+
+  let explicacao: ExplicacaoIA | null = null;
+  let erroFinal = "";
+
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      explicacao = await explicarQuestao(questaoInput);
+    } catch (e) {
+      erroFinal =
+        e instanceof Error ? e.message : "Falha ao gerar explicação (Gemini).";
+    }
+  }
+
+  if (!explicacao && process.env.GROQ_API_KEY) {
+    try {
+      explicacao = await explicarQuestaoGroq(questaoInput);
+    } catch (e) {
+      erroFinal =
+        e instanceof Error ? e.message : "Falha ao gerar explicação (Groq).";
+    }
+  }
+
+  if (!explicacao) {
     return NextResponse.json(
-      { erro: e instanceof Error ? e.message : "Falha ao gerar explicação." },
+      { erro: erroFinal || "Falha ao gerar explicação." },
       { status: 502 }
     );
   }
@@ -80,10 +107,12 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const { error: updateError } = await admin
-    .from("questoes")
+    .from(tabela)
     .update({
       alternativas: novasAlternativas,
-      comentario_geral: montarComentario(explicacao) || questao.comentario_geral,
+      ...(fonte === "questoes"
+        ? { comentario_geral: montarComentario(explicacao) || questao.comentario_geral }
+        : {}),
       explicacao_ia: explicacao,
       explicacao_gerada_em: new Date().toISOString(),
       disciplina: questao.disciplina ?? explicacao.area,

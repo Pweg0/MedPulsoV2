@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  X,
+  Loader2,
+  Sparkles,
+  TriangleAlert,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -11,6 +20,31 @@ import { useMounted } from "@/lib/use-mounted";
 import { FormattedText, decodeEntities } from "@/components/practice/formatted-text";
 import type { Questao, Alternativa } from "@/lib/supabase/questoes";
 import type { ExplicacaoIA } from "@/lib/gemini";
+
+const BASES: Record<string, string> = {
+  protocolo_ms: "Ministério da Saúde",
+  legislacao_sus: "legislação do SUS",
+  sociedade_especialidade: "sociedade de especialidade",
+  fisiopatologia: "fisiopatologia",
+};
+
+const ERROS: Record<string, string> = {
+  conduta_certa_momento_errado: "conduta certa, momento errado",
+  exame_indicado_mas_nao_o_primeiro: "exame indicado, mas não o primeiro",
+  diagnostico_descartado_por_achado: "diagnóstico descartado por um achado",
+  dose_via_ou_duracao_errada: "dose, via ou duração errada",
+  conduta_de_outro_nivel_de_atencao: "conduta de outro nível de atenção",
+  contraindicado_no_caso: "contraindicado neste caso",
+  viola_norma_ou_legislacao: "viola norma ou legislação",
+  conceito_trocado: "conceito trocado",
+  incompleto: "incompleto",
+};
+
+type Estatisticas = {
+  counts: Record<string, number>;
+  total: number;
+  acertos: number;
+};
 
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -21,20 +55,8 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
-function altExplicacao(alt: Alternativa, ai?: ExplicacaoIA) {
-  if (ai) {
-    return alt.correta
-      ? ai.por_que_correta
-      : ai.refutacoes.find((r) => r.letra === alt.letra)?.erro || alt.explicacao;
-  }
+function altExplicacao(alt: Alternativa) {
   return alt.explicacao;
-}
-
-function montarResumo(ai: ExplicacaoIA) {
-  const partes: string[] = [];
-  if (ai.pegadinha) partes.push(ai.pegadinha);
-  if (ai.nota_de_atualizacao) partes.push(`Atualização: ${ai.nota_de_atualizacao}`);
-  return partes.join("\n\n");
 }
 
 export function PracticeSession({ questoes }: { questoes: Questao[] }) {
@@ -42,24 +64,76 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
   const mounted = useMounted();
   const [order] = useState(() => shuffle(questoes));
   const [index, setIndex] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [aiExplicacoes, setAiExplicacoes] = useState<Record<string, ExplicacaoIA>>({});
+  const [aiExplicacoes, setAiExplicacoes] = useState<Record<string, ExplicacaoIA>>(
+    () => {
+      const cache: Record<string, ExplicacaoIA> = {};
+      for (const q of questoes) {
+        if (q.explicacao_ia) cache[q.id] = q.explicacao_ia as ExplicacaoIA;
+      }
+      return cache;
+    }
+  );
   const [explicando, setExplicando] = useState(false);
   const [aiErro, setAiErro] = useState<string | null>(null);
+  const [categoriaAberta, setCategoriaAberta] = useState(false);
+  const [categoriaQuestaoId, setCategoriaQuestaoId] = useState<string | null>(
+    null
+  );
+  const [stats, setStats] = useState<Record<string, Estatisticas>>({});
 
   const questao = order[index % order.length];
+  const selected = answers[questao.id] ?? null;
   const answered = selected !== null;
   const ai = aiExplicacoes[questao.id];
-  const temExplicacao =
-    !!ai || questao.alternativas.some((a) => a.explicacao?.trim());
-  const resumoTexto = ai ? montarResumo(ai) : questao.comentario_geral;
+  const disciplinaHierarquia = questao.disciplina
+    ? questao.disciplina.split(" > ").map((s) => s.trim())
+    : [];
+  const disciplinaTopo = disciplinaHierarquia[0];
+  const hierarquia =
+    disciplinaHierarquia.length > 1 ? disciplinaHierarquia : ai?.categoria ?? [];
+  const questaoStats = stats[questao.id];
+  const acertouAtual = answered
+    ? questao.alternativas.find((a) => a.letra === selected)?.correta ?? false
+    : false;
+
+  if (mounted && categoriaQuestaoId !== questao.id) {
+    setCategoriaQuestaoId(questao.id);
+    setCategoriaAberta(false);
+  }
+
+  useEffect(() => {
+    if (!answered) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("tentativas")
+      .select("resposta_letra, acertou")
+      .eq("questao_id", questao.id)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const counts: Record<string, number> = {};
+        let acertos = 0;
+        for (const row of data ?? []) {
+          counts[row.resposta_letra] = (counts[row.resposta_letra] ?? 0) + 1;
+          if (row.acertou) acertos++;
+        }
+        setStats((prev) => ({
+          ...prev,
+          [questao.id]: { counts, total: data?.length ?? 0, acertos },
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [questao.id, answered]);
 
   async function handleSelect(letra: string) {
     if (answered) return;
-    setSelected(letra);
+    setAnswers((prev) => ({ ...prev, [questao.id]: letra }));
     setAiErro(null);
 
     const alt = questao.alternativas.find((a) => a.letra === letra);
@@ -99,10 +173,14 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
     }
   }
 
-  function handleNext() {
-    setSelected(null);
+  function goPrev() {
     setAiErro(null);
-    setIndex((i) => i + 1);
+    setIndex((i) => (i - 1 + order.length) % order.length);
+  }
+
+  function goNext() {
+    setAiErro(null);
+    setIndex((i) => (i + 1) % order.length);
   }
 
   if (!mounted) {
@@ -134,162 +212,438 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
         )}
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={questao.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3 }}
-          className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8"
+      <div className="flex items-stretch gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={goPrev}
+          aria-label="Questão anterior"
+          className="flex h-10 w-10 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent"
         >
-          <div className="flex flex-wrap items-center gap-2">
-            {questao.disciplina && (
-              <span className="rounded-full border border-border-strong bg-bg-inset px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-text-secondary">
-                {questao.disciplina}
-              </span>
-            )}
-            {questao.instituicao && (
-              <span className="rounded-full border border-border-strong bg-bg-inset px-3 py-1 font-mono text-[11px] text-text-tertiary">
-                {questao.instituicao}
-                {questao.ano ? ` · ${questao.ano}` : ""}
-              </span>
-            )}
-          </div>
+          <ChevronLeft size={18} />
+        </button>
 
-          <FormattedText
-            text={questao.enunciado}
-            className="mt-5 text-base leading-relaxed text-text-primary"
-          />
+        <div className="min-w-0 flex-1">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={questao.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="font-mono text-xs text-text-tertiary">
+                    Questão {index + 1}
+                  </span>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {disciplinaTopo && (
+                      <span className="rounded-full border border-border-strong bg-bg-inset px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-text-secondary">
+                        {disciplinaTopo}
+                      </span>
+                    )}
+                    {questao.instituicao && (
+                      <span
+                        title={questao.instituicao}
+                        className="max-w-[280px] truncate rounded-full border border-border-strong bg-bg-inset px-3 py-1 font-mono text-[11px] text-text-tertiary"
+                      >
+                        {questao.instituicao}
+                        {questao.ano ? ` · ${questao.ano}` : ""}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-          <div className="mt-6 flex flex-col gap-3">
-            {questao.alternativas.map((alt) => {
-              const isSelected = alt.letra === selected;
-              const showState = answered;
-              const explicacaoTexto = altExplicacao(alt, ai);
-
-              return (
-                <div key={alt.letra}>
+                {hierarquia.length > 1 && (
                   <button
                     type="button"
-                    disabled={answered}
-                    onClick={() => handleSelect(alt.letra)}
+                    onClick={() => setCategoriaAberta((v) => !v)}
+                    aria-label="Mostrar categoria"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent"
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={cn(
+                        "transition-transform",
+                        categoriaAberta && "rotate-180"
+                      )}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {categoriaAberta && hierarquia.length > 1 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  {hierarquia.map((c, i) => (
+                    <span key={i} className="flex items-center gap-1.5">
+                      {i > 0 && (
+                        <ChevronRight
+                          size={11}
+                          className="text-text-tertiary/50"
+                        />
+                      )}
+                      <span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 font-mono text-[11px] text-accent">
+                        {c}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {answered && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
-                      !answered &&
-                        "border-border-strong hover:border-accent cursor-pointer",
-                      showState &&
-                        !alt.correta &&
-                        !isSelected &&
-                        "border-border opacity-50",
-                      showState && alt.correta && "border-vital-500 bg-vital-500/10",
-                      showState &&
-                        isSelected &&
-                        !alt.correta &&
-                        "border-coral-500 bg-coral-500/10"
+                      "rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider",
+                      acertouAtual
+                        ? "bg-vital-500/15 text-vital-500"
+                        : "bg-coral-500/15 text-coral-500"
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-xs",
-                        showState && alt.correta
-                          ? "border-vital-500 bg-vital-500 text-on-accent"
-                          : showState && isSelected
-                            ? "border-coral-500 bg-coral-500 text-on-accent"
-                            : "border-border-strong text-text-tertiary"
-                      )}
-                    >
-                      {showState && alt.correta ? (
-                        <Check size={13} />
-                      ) : showState && isSelected ? (
-                        <X size={13} />
-                      ) : (
-                        alt.letra
-                      )}
+                    {acertouAtual ? "Certa" : "Errada"}
+                  </span>
+                  {questaoStats && questaoStats.total > 0 && (
+                    <span className="rounded-full border border-border-strong bg-bg-inset px-2.5 py-1 font-mono text-[11px] text-text-tertiary">
+                      {Math.round((questaoStats.acertos / questaoStats.total) * 100)}% acertaram
                     </span>
-                    <span className="text-text-secondary">
-                      {decodeEntities(alt.texto)}
-                    </span>
-                  </button>
-
-                  {showState && explicacaoTexto && (isSelected || alt.correta) && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      transition={{ duration: 0.25 }}
-                      className="overflow-hidden"
-                    >
-                      <FormattedText
-                        text={explicacaoTexto}
-                        className="ml-9 mt-2 text-xs leading-relaxed text-text-tertiary"
-                      />
-                    </motion.div>
                   )}
                 </div>
-              );
-            })}
-          </div>
+              )}
 
-          {answered && !temExplicacao && (
-            <div className="mt-5 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-border-strong p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="flex items-center gap-2 text-xs text-text-tertiary">
-                <Sparkles size={14} className="text-accent" />
-                Essa questão ainda não tem explicação.
-              </p>
-              <Button
-                onClick={handleGerarExplicacao}
-                disabled={explicando}
-                size="sm"
-                variant="secondary"
-              >
-                {explicando ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Sparkles size={14} />
-                )}
-                Gerar explicação com IA
-              </Button>
-            </div>
-          )}
-
-          {aiErro && (
-            <p className="mt-3 text-xs text-coral-500">{aiErro}</p>
-          )}
-
-          {answered && ai?.discordo_do_gabarito && (
-            <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <TriangleAlert size={16} className="mt-0.5 shrink-0 text-amber-500" />
-              <p className="text-sm leading-relaxed text-text-secondary">
-                <span className="font-semibold text-text-primary">
-                  A IA discorda do gabarito:
-                </span>{" "}
-                {ai.motivo_discordancia || "questão possivelmente ambígua ou desatualizada."}
-              </p>
-            </div>
-          )}
-
-          {answered && resumoTexto && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              transition={{ duration: 0.3 }}
-              className="mt-5 overflow-hidden rounded-2xl border border-accent/30 bg-accent/10 p-4"
-            >
-              <p className="text-sm font-semibold text-text-primary">Resumo</p>
               <FormattedText
-                text={resumoTexto}
-                className="mt-1.5 text-sm leading-relaxed text-text-secondary"
+                text={questao.enunciado}
+                className="mt-5 text-base leading-relaxed text-text-primary"
               />
-            </motion.div>
-          )}
 
-          {answered && (
-            <Button onClick={handleNext} className="mt-6 w-full" size="lg">
-              Próxima questão <ArrowRight size={18} />
-            </Button>
-          )}
-        </motion.div>
-      </AnimatePresence>
+              <div className="mt-6 flex flex-col gap-3">
+                {questao.alternativas.map((alt) => {
+                  const isSelected = alt.letra === selected;
+                  const showState = answered;
+                  const refutacao = ai?.refutacoes.find(
+                    (r) => r.letra === alt.letra
+                  );
+                  const explicacaoTexto = ai
+                    ? alt.correta
+                      ? ai.por_que_correta
+                      : refutacao?.erro
+                    : altExplicacao(alt);
+                  const tipoErroLabel =
+                    ai && !alt.correta && refutacao
+                      ? ERROS[refutacao.tipo_erro] ?? refutacao.tipo_erro
+                      : null;
+                  const pct =
+                    questaoStats && questaoStats.total > 0
+                      ? Math.round(
+                          ((questaoStats.counts[alt.letra] ?? 0) /
+                            questaoStats.total) *
+                            100
+                        )
+                      : null;
+
+                  return (
+                    <div key={alt.letra}>
+                      <button
+                        type="button"
+                        disabled={answered}
+                        onClick={() => handleSelect(alt.letra)}
+                        className={cn(
+                          "flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
+                          !answered &&
+                            "border-border-strong hover:border-accent cursor-pointer",
+                          showState &&
+                            !alt.correta &&
+                            !isSelected &&
+                            "border-border opacity-50",
+                          showState && alt.correta && "border-vital-500 bg-vital-500/10",
+                          showState &&
+                            isSelected &&
+                            !alt.correta &&
+                            "border-coral-500 bg-coral-500/10"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-xs",
+                            showState && alt.correta
+                              ? "border-vital-500 bg-vital-500 text-on-accent"
+                              : showState && isSelected
+                                ? "border-coral-500 bg-coral-500 text-on-accent"
+                                : "border-border-strong text-text-tertiary"
+                          )}
+                        >
+                          {showState && alt.correta ? (
+                            <Check size={13} />
+                          ) : showState && isSelected ? (
+                            <X size={13} />
+                          ) : (
+                            alt.letra
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          {pct !== null && (
+                            <span className="mb-1.5 flex items-center gap-2">
+                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-inset">
+                                <span
+                                  className={cn(
+                                    "block h-full rounded-full",
+                                    alt.correta ? "bg-vital-500" : "bg-coral-500/70"
+                                  )}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </span>
+                              <span className="shrink-0 font-mono text-[10px] text-text-tertiary">
+                                {pct}%
+                              </span>
+                            </span>
+                          )}
+                          <span className="text-text-secondary">
+                            {decodeEntities(alt.texto)}
+                          </span>
+                        </span>
+                      </button>
+
+                      {showState && explicacaoTexto && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          transition={{ duration: 0.25 }}
+                          className="overflow-hidden"
+                        >
+                          <div
+                            className={cn(
+                              "mt-2 rounded-xl px-4 py-3",
+                              alt.correta ? "bg-vital-500/10" : "bg-coral-500/10"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "font-mono text-[11px] font-semibold uppercase tracking-wider",
+                                alt.correta
+                                  ? "text-vital-600 dark:text-vital-400"
+                                  : "text-coral-600 dark:text-coral-400"
+                              )}
+                            >
+                              {alt.correta ? "Correta" : "Errada"}
+                              {tipoErroLabel ? ` · ${tipoErroLabel}` : ""}
+                            </span>
+                            <FormattedText
+                              text={explicacaoTexto}
+                              className="mt-1 text-xs leading-relaxed text-text-secondary"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {answered && !questaoStats && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-text-tertiary">
+                  <Loader2 size={12} className="animate-spin" /> carregando estatísticas
+                </p>
+              )}
+
+              {answered && !ai && (
+                <div className="mt-5 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-border-strong p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="flex items-center gap-2 text-xs text-text-tertiary">
+                    <Sparkles size={14} className="text-accent" />
+                    Essa questão ainda não tem explicação.
+                  </p>
+                  <Button
+                    onClick={handleGerarExplicacao}
+                    disabled={explicando}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    {explicando ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={14} />
+                    )}
+                    Buscar Explicação e resolução da questão
+                  </Button>
+                </div>
+              )}
+
+              {aiErro && (
+                <p className="mt-3 text-xs text-coral-500">{aiErro}</p>
+              )}
+
+              {answered && ai && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-5 overflow-hidden rounded-2xl border border-border bg-bg-inset p-5 sm:p-6"
+                >
+                  {ai.dado_chave_da_vinheta && (
+                    <>
+                      <h4 className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
+                        O dado que decide a questão
+                      </h4>
+                      <p className="mt-2 rounded-xl border border-vital-500/30 bg-vital-500/10 p-3 font-display text-sm italic leading-relaxed text-text-secondary">
+                        {ai.dado_chave_da_vinheta}
+                      </p>
+                    </>
+                  )}
+
+                  {ai.como_cobra_na_prova && (
+                    <>
+                      <h4 className="mt-5 font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
+                        Como isso cai na prova
+                      </h4>
+                      <FormattedText
+                        text={ai.como_cobra_na_prova}
+                        className="mt-2 text-sm leading-relaxed text-text-secondary"
+                      />
+                    </>
+                  )}
+
+                  {ai.quadro_associado && (
+                    <>
+                      <h4 className="mt-5 font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
+                        O que costuma vir junto
+                      </h4>
+                      <FormattedText
+                        text={ai.quadro_associado}
+                        className="mt-2 text-sm leading-relaxed text-text-secondary"
+                      />
+                    </>
+                  )}
+
+                  {ai.palavras_chave_prova && ai.palavras_chave_prova.length > 0 && (
+                    <>
+                      <h4 className="mt-5 font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
+                        Palavras-chave da prova
+                      </h4>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {ai.palavras_chave_prova.map((p, i) => (
+                          <span
+                            key={i}
+                            className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs text-accent"
+                          >
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {ai.pegadinha && (
+                    <>
+                      <h4 className="mt-5 font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
+                        A pegadinha
+                      </h4>
+                      <FormattedText
+                        text={ai.pegadinha}
+                        className="mt-2 text-sm leading-relaxed text-text-secondary"
+                      />
+                    </>
+                  )}
+
+                  {ai.dica_prova && (
+                    <div className="mt-5 rounded-xl border border-vital-500/30 bg-vital-500/10 p-4">
+                      <p className="text-xs font-semibold text-vital-500">
+                        Como não errar de novo
+                      </p>
+                      <FormattedText
+                        text={ai.dica_prova}
+                        className="mt-1 text-sm leading-relaxed text-text-secondary"
+                      />
+                    </div>
+                  )}
+
+                  {ai.revisao_do_tema && (
+                    <div className="mt-5 rounded-xl border border-border-strong bg-bg-elevated p-4">
+                      <h4 className="font-mono text-[11px] uppercase tracking-wider text-accent">
+                        Revisão do tema — {ai.tema}
+                      </h4>
+                      <FormattedText
+                        text={ai.revisao_do_tema}
+                        className="mt-2 text-sm leading-relaxed text-text-secondary"
+                      />
+                    </div>
+                  )}
+
+                  {ai.nota_de_atualizacao && (
+                    <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                      <p className="text-xs font-semibold text-amber-500">
+                        O protocolo mudou desde esta prova
+                      </p>
+                      <FormattedText
+                        text={ai.nota_de_atualizacao}
+                        className="mt-1 text-sm leading-relaxed text-text-secondary"
+                      />
+                    </div>
+                  )}
+
+                  {ai.discordo_do_gabarito && (
+                    <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                      <TriangleAlert size={16} className="mt-0.5 shrink-0 text-amber-500" />
+                      <div>
+                        <p className="text-xs font-semibold text-amber-500">
+                          Atenção: gabarito contestado
+                        </p>
+                        <FormattedText
+                          text={
+                            ai.motivo_discordancia ||
+                            "Questão possivelmente ambígua ou desatualizada."
+                          }
+                          className="mt-1 text-sm leading-relaxed text-text-secondary"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {ai.confianca_leitura === "baixa" && (
+                    <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                      <p className="text-xs font-semibold text-amber-500">
+                        Leitura incompleta
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                        Esta questão depende de conteúdo visual (figura, gráfico ou
+                        tabela) que não foi enviado à IA.
+                      </p>
+                    </div>
+                  )}
+
+                  {(ai.tema || ai.base_normativa || ai.fonte) && (
+                    <div className="mt-5 flex flex-wrap gap-2 font-mono text-[10.5px] text-text-tertiary">
+                      {ai.tema && (
+                        <span className="rounded border border-border px-2 py-1">
+                          {ai.tema}
+                        </span>
+                      )}
+                      {ai.base_normativa && (
+                        <span className="rounded border border-border px-2 py-1">
+                          base: {BASES[ai.base_normativa] ?? ai.base_normativa}
+                        </span>
+                      )}
+                      {ai.fonte && (
+                        <span className="rounded border border-border px-2 py-1">
+                          {ai.fonte}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <button
+          type="button"
+          onClick={goNext}
+          aria-label="Próxima questão"
+          className="flex h-10 w-10 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
     </div>
   );
 }

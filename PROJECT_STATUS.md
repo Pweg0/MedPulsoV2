@@ -84,6 +84,24 @@ trouxe o resultado final, que aceitei importar). Script de import:
 scripts/import-questions.mjs arquivo.json`), usa `upsert` com
 `onConflict: fingerprint` pra ignorar duplicatas.
 
+**Atualização 2026-08-18: usuário importou um lote novo por conta própria
+(fora dessa sessão) e o banco pulou de ~8.971 pra 125.628 questões.**
+Diferença importante: o campo `disciplina` desse lote novo já vem com
+**hierarquia embutida usando `" > "` como separador**
+(ex: `"Clínica Médica > Infectologia > COVID 19"`,
+`"Medicina Preventiva > Sistema Único de Saúde (SUS) > Princípios e
+Diretrizes do SUS"`). Nível principal (antes do primeiro `" > "`) cai em
+7 baldes limpos: **Clínica Médica** (39.510), **Cirurgia** (21.594),
+**Medicina Preventiva** (17.868), **Pediatria** (17.409), **Ginecologia**
+(12.162), **Obstetrícia** (11.270), **Outros** (5.815). Isso é usado
+tanto pro filtro de área quanto pro breadcrumb colapsável em `/estudar`
+(ver seção abaixo) — **antes** dessa importação, 100% das questões
+tinham `disciplina = "Cirurgia"` fixo (confirmado por amostragem
+aleatória, não era bug). `ano` também ganhou 24 valores distintos
+(2001–2026, antes ia só até 2020). `instituicao`/banca tem 318 valores
+distintos — 4 linhas são lixo confirmado do parsing original (filtradas
+na função SQL `distinct_instituicoes()`, ver `0004_filtros_estudar.sql`).
+
 **Fonte legítima adicional identificada mas ainda não importada**: em
 `C:\Users\josue\OneDrive\Área de Trabalho\files\dados.json` tem **1130
 questões reais do REVALIDA/INEP** (12 provas, PDFs oficiais públicos),
@@ -128,11 +146,73 @@ Se isso voltar a quebrar no futuro, rodar
 pra ver quais models "flash" com `generateContent` a key atual tem
 acesso.
 
+**Retry + fallback (2026-08-18)**: `explicarQuestao` (`gemini.ts`) tenta
+até 3x com backoff exponencial em erros 429/500/503 (sobrecarga
+transitória, aconteceu de verdade em teste — Gemini free tier engasga
+com frequência). Se mesmo assim falhar (ou se `GEMINI_API_KEY` não
+existir), a rota `/api/explicar` cai pro **Groq** como fallback
+(`src/lib/groq.ts`, `explicarQuestaoGroq`, model
+`openai/gpt-oss-120b` via `GROQ_MODEL` — **atenção**: os modelos
+habilitados na dashboard do Groq (console.groq.com/settings/project/
+limits) nem sempre batem com o que a API realmente aceita; confiar no
+`GET /v1/models` da API, não na tela). `GROQ_API_KEY` grátis,
+configurada em `.env.local` + Vercel. Groq é sensivelmente mais fraco em
+acurácia factual de nicho (achei um erro real de lateralidade de hérnia
+num teste) — é fallback de última instância, não substituto do dia a
+dia.
+
+O schema de `ExplicacaoIA` cresceu bastante desde a v1: `categoria`
+(array hierárquico gerado pela IA, 2-4 níveis), `palavras_chave_prova`,
+`como_cobra_na_prova`, `quadro_associado`, `dica_prova` (todos
+opcionais, só preenchidos quando fizer sentido) e `revisao_do_tema`
+(**sempre preenchido** — resumo de aula do tema geral da questão:
+definição, fisiopatologia, fórmulas/escores com números por extenso,
+conduta. Limite rígido de 3 frases por campo no prompt depois que um
+teste real gerou um campo `quadro_associado` degenerando numa frase
+gigante repetitiva sobre SUS/atenção primária — ver prompt em
+`gemini.ts` pra instrução completa "LIMITE DE TAMANHO, RÍGIDO"). Cuidado
+extra com números/fórmulas no prompt (nunca inventar valor de escore ou
+percentual sem certeza) porque `revisao_do_tema` é o campo mais
+propenso a esse tipo de erro.
+
 ### `/estudar` — resolver questões (`src/components/practice/practice-session.tsx`)
-Página protegida, embaralha as questões client-side, responde, revela
-gabarito com explicação por alternativa, grava tentativa em `tentativas`
-(se logado), botão "Próxima questão", botão "Gerar explicação com IA"
-quando a questão não tem `explicacao` ainda.
+Reescrito bastante nesta sessão (2026-08-18), saiu de "MVP simples" pra
+mais perto do que o usuário queria replicando o design de
+`C:\Users\josue\OneDrive\Área de Trabalho\files\index.html` (app anterior
+dele):
+
+- **Navegação livre**: setas laterais (prev/next, `src/components/
+  practice/practice-session.tsx`) trocam de questão sem precisar
+  responder a atual. Estado de resposta por questão vive num map
+  `answers: Record<questaoId, letra>` (não mais um único `selected`),
+  então voltar numa questão já respondida mantém a resposta.
+- **Painel de explicação estruturado** (quando `explicacao_ia` existe):
+  por-alternativa mostra a explicação específica da IA embaixo de cada
+  opção (não só a selecionada) com a categoria do erro
+  (`tipo_erro`); painel consolidado abaixo tem dado-chave, palavras-chave
+  da prova, como cai na prova, quadro associado, pegadinha, dica pra não
+  errar, revisão do tema, avisos (protocolo desatualizado / discorda do
+  gabarito / leitura de figura) e meta (tema/base normativa/fonte). Bloco
+  antigo "Resumo" (fallback pra `comentario_geral`) foi removido —
+  só aparece o botão "Buscar Explicação e resolução da questão" quando
+  não tem `explicacao_ia` ainda.
+- **Estatísticas reais**: % de quem acertou/errou cada alternativa e %
+  de acerto geral, calculado on-the-fly da tabela `tentativas` (sem
+  cache — refetch a cada vez que responde uma questão, aceitável na
+  escala atual). Tag "Certa"/"Errada" ao lado.
+- **Categoria colapsável**: chevron no canto mostra breadcrumb
+  hierárquico. Fonte primária é `questao.disciplina` (split por `" > "`,
+  sempre disponível pras 125k questões desde 2026-08-18); fallback é
+  `ai.categoria` (gerado pela IA) só quando `disciplina` é um nível só.
+- **Filtros** (`src/components/practice/practice-filters.tsx` + query
+  params `?ano=&banca=&area=` lidos em `src/app/estudar/page.tsx`):
+  ano, banca/instituição e área (os 7 baldes de nível principal de
+  `disciplina`). Listas de ano/banca vêm de funções SQL
+  (`distinct_anos()`, `distinct_instituicoes()` — ver
+  `supabase/migrations/0004_filtros_estudar.sql`, já filtra 4 linhas de
+  lixo confirmadas na banca). `PracticeSession` recebe `key={ano-banca}`
+  pra remontar do zero quando o filtro muda (senão o estado interno
+  ficava dessincronizado com a nova lista de questões).
 
 ### `/dashboard` — hub do aluno
 Shell com sidebar (`components/dashboard/sidebar.tsx`,
@@ -271,6 +351,10 @@ Vale ler antes de mexer nesses arquivos de novo — todos pareciam
 - [x] Rodar `supabase/migrations/0003_explicacao_ia.sql` no SQL Editor — aplicada
 - [x] Me passar `GEMINI_API_KEY` (Google AI Studio) — em `.env.local` e no
       Vercel (production/preview/development)
+- [x] Me passar `GROQ_API_KEY` (console.groq.com, grátis) — em `.env.local`
+      e no Vercel, usada como fallback quando Gemini falha
+- [x] Rodar `supabase/migrations/0004_filtros_estudar.sql` no SQL Editor —
+      aplicada (funções pro filtro de ano/banca em `/estudar`)
 - [ ] Confirmar se e-mail de confirmação continua desativado no Supabase
       (Authentication → Providers → Email → "Confirm email")
 - [ ] Decidir se quer configurar SMTP próprio (Resend ou similar) antes de
@@ -279,8 +363,13 @@ Vale ler antes de mexer nesses arquivos de novo — todos pareciam
 
 **Funcionalidades da visão original ainda não construídas**:
 - [ ] Importar as 1130 questões reais do REVALIDA (`files/dados.json`) —
-      precisa de script de conversão pro nosso schema (`instituicao`,
-      `disciplina`, `enunciado`, `alternativas`)
+      menos urgente agora que o banco já tem 125k questões multi-área
+      (ver nota 2026-08-18 na seção do banco de questões), mas ainda é
+      fonte legítima adicional (INEP oficial) — precisa de script de
+      conversão pro nosso schema (`instituicao`, `disciplina`,
+      `enunciado`, `alternativas`)
+- [ ] Testar o filtro de `/estudar` (ano/banca/área) em produção depois
+      do próximo deploy — só testado em dev nesta sessão
 - [ ] Dashboard "Seu progresso" com gráfico real por área (hoje é só
       texto placeholder) — dado já existe em `tentativas`, falta a
       visualização
@@ -297,10 +386,12 @@ Vale ler antes de mexer nesses arquivos de novo — todos pareciam
       nada começado
 
 **Menor prioridade / polish**:
-- [ ] Normalizar disciplina/área das ~8.971 questões importadas — nomes
-      podem estar inconsistentes entre bancas diferentes
+- [ ] A banca "BOLSA MEC+Bonificação" na lista de filtro parece
+      suspeita (não segue o padrão "UF - Nome - Sigla" das outras) mas
+      não é claramente lixo como as 4 já filtradas — confirmar com o
+      usuário se é uma banca real antes de excluir
 - [ ] Considerar analytics de uso (quantas explicações IA foram geradas,
-      custo acumulado no Gemini)
+      custo acumulado no Gemini/Groq)
 
 ## Convenções que valem a pena manter
 
