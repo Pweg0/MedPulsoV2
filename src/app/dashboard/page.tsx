@@ -6,6 +6,7 @@ import { StreakCard } from "@/components/dashboard/streak-card";
 import { SessionCard } from "@/components/dashboard/session-card";
 import { ToolGrid } from "@/components/dashboard/tool-grid";
 import { CollapsibleSections } from "@/components/dashboard/collapsible-sections";
+import { ClinicsBanner } from "@/components/dashboard/clinics-banner";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { getDashboardData } from "@/lib/supabase/dashboard-data";
 
@@ -59,6 +60,8 @@ export default async function DashboardPage() {
         <ToolGrid />
 
         <CollapsibleSections data={data} />
+
+        <ClinicsBanner />
       </div>
     </Container>
   );
