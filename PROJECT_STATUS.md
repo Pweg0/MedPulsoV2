@@ -4,7 +4,10 @@
 > memória do que aconteceu, leia isto inteiro antes de tocar em qualquer
 > coisa. Escrito do zero em 2026-08-17, atualizado em 2026-08-18 depois de
 > uma sessão longa que foi do MVP simples até filtros avançados + modo
-> SIMULADO com indexação de PDF por IA.
+> SIMULADO com indexação de PDF por IA. Atualizado em 2026-08-27 depois do
+> rebrand visual petrol/teal, consolidação da IA de explicação em
+> provedor único, e limite de 5 perguntas pra visitante anônimo na
+> landing.
 
 ## O que é
 
@@ -49,8 +52,10 @@ Next.js 16 (App Router, **atenção**: `middleware.ts` foi renomeado pra
 (Postgres + Auth) · Framer Motion · next-themes (claro/escuro) · lucide-react
 (versão instalada **não tem ícones de marca** tipo Instagram/Youtube — ver
 `src/components/icons/social-icons.tsx` pra ícones customizados) · Gemini
-API (explicações por IA + indexação de PDF, chamada via `fetch` direto, sem
-SDK) · Groq (fallback quando Gemini falha).
+API (só indexação de PDF do simulado, chamada via `fetch` direto, sem SDK)
+· provedor de IA único e configurável pra explicação de questões
+(`AI_ENDPOINT`/`AI_API_KEY`/`AI_MODEL`, formato OpenAI chat.completions —
+ver seção "Explicação por IA" abaixo).
 
 `AGENTS.md` no repo avisa que essa versão do Next.js tem breaking changes
 vs. treino do modelo — sempre checar `node_modules/next/dist/docs/` antes
@@ -59,11 +64,38 @@ de usar uma API que "deveria" funcionar de um jeito.
 ## O que já está pronto e funcionando
 
 ### Site de marketing (`src/app/(marketing)/`)
-Landing page, `/precos`, `/login`, `/cadastro`. Tema claro/escuro. Design
-system próprio (paleta coral/vital sobre azul-tinta, Fraunces + Plus
-Jakarta Sans + IBM Plex Mono). Landing tem card de questão interativo no
-hero (`components/landing/question-card.tsx`) puxando de
+Landing page, `/precos`, `/login`, `/cadastro`. Tema claro/escuro.
+
+**Rebrand desta sessão (2026-08-27)**: design system trocado de
+coral/vital-sobre-azul-tinta (Fraunces + Plus Jakarta Sans + IBM Plex
+Mono) pra uma paleta **petrol/teal** (`--teal-*`/`--ink-*`/`--paper-*` em
+`src/app/globals.css`), fontes **Plus Jakarta Sans + Inter** (`--font-mono`
+deliberadamente aliased pra Inter, não uma mono real, pra não precisar
+editar todo uso de `font-mono` no código). Baseado num arquivo de
+referência de OUTRO produto (`index.html` na Área de Trabalho do usuário,
+não faz parte deste repo) — só cor/fonte/estilo, **estrutura e conteúdo
+mantidos intactos** por instrução explícita (inclusive o padrão do card
+de questão no topo-direito do hero). Feito editando só 2 arquivos
+(`layout.tsx` fontes, `globals.css` tokens) porque o codebase já usava
+100% classes Tailwind com variáveis CSS semânticas, zero hex hardcoded.
+`--coral-*` foi **repurposed**: antes era o destaque de marca, agora é
+só "erro/resposta errada/área fraca" — qualquer uso de coral que era só
+destaque visual (não erro) foi migrado pra `accent`
+(`performance-card.tsx`, `auth-layout.tsx`, `final-cta.tsx`). Todos os
+demais usos de `coral-*` no código foram auditados e são legitimamente
+estados de erro (formulários de erro, resposta errada em questões,
+"Sair" no sidebar).
+
+Landing tem card de questão interativo no hero
+(`components/landing/question-card.tsx`) puxando de
 `src/lib/questions.ts` (exemplos estáticos, não do banco real).
+**Novo nesta sessão**: visitante anônimo é limitado a **5 perguntas
+respondidas** (contador em `localStorage`, chave
+`mp_anon_perguntas_respondidas`); ao atingir o limite, o botão "Tentar
+outra questão" some e um CTA fixo empurra pra `/cadastro`. Sem
+verificação de servidor — é só um freio de UX pro visitante anônimo,
+contornável limpando localStorage/aba anônima (aceitável, não é controle
+de acesso real).
 
 ### Autenticação (Supabase Auth)
 Email/senha real + botão Google OAuth (schema pronto, **não testado se o
@@ -143,38 +175,51 @@ scripts/import-questions.mjs arquivo.json`), usa `upsert` com
   `disciplina` (split por `" > "`); fallback é `ai.categoria` (gerado pela
   IA) quando `disciplina` só tem 1 nível.
 
-### Explicação por IA (Gemini + fallback Groq) — `src/app/api/explicar/route.ts`
+### Explicação por IA (provedor único configurável) — `src/app/api/explicar/route.ts`
 Portada de um projeto anterior do usuário
 (`C:\Users\josue\OneDrive\Área de Trabalho\files\app.py`, que usava Claude
 via Anthropic API). Prompt (`SYSTEM` em `src/lib/gemini.ts`) mantém a
 hierarquia de fontes do original (`protocolo_ms` > `legislacao_sus` >
 `sociedade_especialidade` > `fisiopatologia`), `discordo_do_gabarito`,
-`confianca_leitura`, mais adições desta sessão: `categoria` (array
+`confianca_leitura`, mais adições de sessões anteriores: `categoria` (array
 hierárquico 2-4 níveis), `palavras_chave_prova`, `como_cobra_na_prova`,
 `quadro_associado`, `dica_prova` (todos opcionais), `revisao_do_tema`
 (sempre preenchido — resumo de aula do tema). **Limite rígido de 3 frases
 por campo de texto livre** no prompt (depois de um teste real gerar um
 campo degenerando numa frase gigante repetitiva).
 
-**Generalizada nesta sessão** pra servir tanto `questoes` quanto
-`simulado_questoes` via parâmetro `fonte: "questoes" | "simulado"` no
-corpo do POST (default `"questoes"` se omitido — chamadas antigas
-continuam funcionando sem mudança).
+Generalizada pra servir tanto `questoes` quanto `simulado_questoes` via
+parâmetro `fonte: "questoes" | "simulado"` no corpo do POST (default
+`"questoes"` se omitido).
 
-Fluxo: cache-check na tabela certa → se vazio, tenta Gemini (até 3x com
-backoff em 429/500/503) → se falhar, tenta Groq (`openai/gpt-oss-120b`) →
-grava de volta via `service_role` (`src/lib/supabase/admin.ts`) → nunca
-regenera a mesma questão duas vezes (cache compartilhado entre usuários).
+**Mudança desta sessão (2026-08-27)**: por pedido explícito do usuário
+("setar somente um endpoint e uma key, não quero várias"), o pipeline
+dual Gemini→Groq foi **removido** e substituído por um único provedor
+genérico compatível com o formato OpenAI chat.completions —
+`explicarQuestaoIA()` em `src/lib/ai-explicar.ts` (novo arquivo).
+`src/lib/groq.ts` foi **deletado**. `src/lib/gemini.ts` perdeu
+`RESPONSE_SCHEMA` e `explicarQuestao()`, mas manteve `SYSTEM`,
+`buildPrompt()` e todo o código de indexação de PDF
+(`indexarProvaComGemini`) intacto — **Gemini agora serve só pra indexação
+de provas em PDF no /simulado**, não mais pra explicação de questões.
 
-**Nota de modelo**: `gemini-2.5-flash` parou de responder pra essa API key
-(`404`). Default trocado pra `gemini-3.6-flash` (`GEMINI_MODEL` no env
-sobrescreve). Se quebrar de novo, `GET
-https://generativelanguage.googleapis.com/v1beta/models?key=...` mostra o
-que a key atual tem acesso.
+Configuração: `AI_ENDPOINT`, `AI_API_KEY`, `AI_MODEL` (o usuário seta os
+valores reais manualmente, tanto em `.env.local` quanto — separadamente —
+nas env vars do Vercel; local não sincroniza automático com lá).
+`GEMINI_API_KEY`/`GEMINI_MODEL` continuam existindo só pra indexação de
+PDF. `GROQ_API_KEY` foi removida do `.env.local` (não referenciada em
+código nenhum mais).
 
-**Status: funcionando de ponta a ponta**, migration `0003_explicacao_ia.sql`
-aplicada, `GEMINI_API_KEY` e `GROQ_API_KEY` configuradas em `.env.local` +
-Vercel.
+Fluxo: cache-check na tabela certa → se vazio, chama `AI_ENDPOINT` com
+`response_format: json_object` → grava de volta via `service_role`
+(`src/lib/supabase/admin.ts`) → nunca regenera a mesma questão duas vezes
+(cache compartilhado entre usuários). Sem retry/fallback — se o endpoint
+único falhar, a rota retorna erro 502 direto.
+
+**Status: build e lint verificados após o refactor, mas não testado
+end-to-end contra um endpoint real** — o usuário ainda precisa confirmar
+que `AI_ENDPOINT`/`AI_API_KEY`/`AI_MODEL` (setados manualmente, ver acima)
+respondem no formato esperado.
 
 ### `/dashboard` — hub do aluno
 Shell com sidebar (`components/dashboard/sidebar.tsx` — itens: Dashboard,
@@ -367,6 +412,14 @@ chegar sem sessão de cookie).
 ## A fazer / pendente
 
 **Bloqueado em você (usuário) — próximos passos imediatos**:
+- [ ] Setar `AI_ENDPOINT`/`AI_API_KEY`/`AI_MODEL` nas env vars do Vercel
+      (Settings → Environment Variables) — já estão no `.env.local` local,
+      mas Vercel não puxa esse arquivo automaticamente; sem isso em
+      produção, `/api/explicar` responde 400 "não configurada"
+- [ ] Testar de ponta a ponta que o endpoint configurado em `AI_ENDPOINT`
+      responde no formato esperado (chat.completions +
+      `response_format: json_object`) — só foi validado via lint/build,
+      nunca contra uma chamada real
 - [ ] Rodar `supabase/migrations/0006_simulados.sql` no SQL Editor (as
       migrations 0001-0005 já estão aplicadas)
 - [ ] Testar `/simulados/indexar` de verdade no navegador (upload manual
