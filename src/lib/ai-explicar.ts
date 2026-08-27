@@ -1,3 +1,8 @@
+// Provedor único e configurável pra explicação de questões — só endpoint e
+// key, sem fallback entre provedores. Formato de requisição compatível com
+// OpenAI chat.completions (funciona com Groq, OpenAI, OpenRouter, proxies
+// locais etc. — troque AI_ENDPOINT/AI_API_KEY/AI_MODEL no .env.local e no
+// Vercel, sem mexer em código).
 import { SYSTEM, buildPrompt, type ExplicacaoIA, type QuestaoParaExplicar } from "@/lib/gemini";
 
 const JSON_SHAPE_HINT = `Responda APENAS com um objeto JSON puro (sem markdown, sem crases,
@@ -23,18 +28,19 @@ sem preâmbulo) com exatamente estas chaves:
  "confianca_leitura": "alta" | "media" | "baixa"
 }`;
 
-export async function explicarQuestaoGroq(
+export async function explicarQuestaoIA(
   q: QuestaoParaExplicar
 ): Promise<ExplicacaoIA> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    throw new Error("GROQ_API_KEY não configurada.");
+  const apiKey = process.env.AI_API_KEY;
+  const endpoint = process.env.AI_ENDPOINT;
+  if (!apiKey || !endpoint) {
+    throw new Error("AI_ENDPOINT e/ou AI_API_KEY não configurados.");
   }
 
+  const model = process.env.AI_MODEL;
   const prompt = buildPrompt(q);
-  const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -53,14 +59,14 @@ export async function explicarQuestaoGroq(
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Groq API retornou ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(`IA retornou ${res.status}: ${body.slice(0, 300)}`);
   }
 
   const json = await res.json();
   const text = json.choices?.[0]?.message?.content;
 
   if (!text) {
-    throw new Error("Resposta vazia da Groq.");
+    throw new Error("Resposta vazia da IA.");
   }
 
   const limpo = text.trim().replace(/^```(?:json)?\n?|```$/g, "");

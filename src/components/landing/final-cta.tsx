@@ -18,7 +18,7 @@ export function FinalCta() {
           className="relative overflow-hidden rounded-[2.5rem] bg-ink-900 px-8 py-16 text-center sm:px-16 dark:bg-bg-inset"
           style={{ backgroundColor: "var(--ink-900)" }}
         >
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 text-coral-500/25">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 text-accent/25">
             <PulseLine strokeWidth={2} />
           </div>
           <h2 className="relative mx-auto max-w-2xl font-display text-4xl leading-tight tracking-tight text-white sm:text-5xl">

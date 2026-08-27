@@ -91,7 +91,7 @@ export function PerformanceCard({ className }: { className?: string }) {
         ))}
       </div>
 
-      <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-coral-500/30 bg-coral-500/10 p-3.5">
+      <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-accent/30 bg-accent/10 p-3.5">
         <Sparkles size={16} className="mt-0.5 shrink-0 text-accent" />
         <p className="text-xs leading-relaxed text-text-secondary">
           <span className="font-semibold text-text-primary">IA sugere:</span>{" "}

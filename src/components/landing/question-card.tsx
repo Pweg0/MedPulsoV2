@@ -17,16 +17,51 @@ function pickRandom(excludeId?: string): PracticeQuestion {
 
 const letters = ["A", "B", "C", "D", "E"];
 
+const LIMITE_ANONIMO = 5;
+const STORAGE_KEY = "mp_anon_perguntas_respondidas";
+
+function lerContagemSalva(): number {
+  try {
+    const n = parseInt(window.localStorage.getItem(STORAGE_KEY) ?? "0", 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function salvarContagem(n: number) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, String(n));
+  } catch {}
+}
+
 export function QuestionCard({ className }: { className?: string }) {
   const mounted = useMounted();
   const [question, setQuestion] = useState<PracticeQuestion | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [countLoaded, setCountLoaded] = useState(false);
 
   if (mounted && !question) {
     setQuestion(pickRandom());
   }
+  if (mounted && !countLoaded) {
+    setAnsweredCount(lerContagemSalva());
+    setCountLoaded(true);
+  }
+
+  const limitAtingido = countLoaded && answeredCount >= LIMITE_ANONIMO;
+
+  function handleSelect(i: number) {
+    if (selected !== null || limitAtingido) return;
+    setSelected(i);
+    const proxima = answeredCount + 1;
+    setAnsweredCount(proxima);
+    salvarContagem(proxima);
+  }
 
   function handleShuffle() {
+    if (limitAtingido) return;
     setSelected(null);
     setQuestion((prev) => pickRandom(prev?.id));
   }
@@ -79,8 +114,8 @@ export function QuestionCard({ className }: { className?: string }) {
                   <button
                     key={i}
                     type="button"
-                    disabled={answered}
-                    onClick={() => setSelected(i)}
+                    disabled={answered || limitAtingido}
+                    onClick={() => handleSelect(i)}
                     className={cn(
                       "flex items-center gap-3 rounded-xl border p-3 text-left text-sm transition-colors",
                       !answered &&
@@ -138,27 +173,44 @@ export function QuestionCard({ className }: { className?: string }) {
                   </p>
                 </div>
 
-                <div className="mt-3 flex flex-col items-start gap-2.5 rounded-2xl border border-dashed border-border-strong p-4">
-                  <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary">
-                    <Lock size={14} className="mt-0.5 shrink-0 text-accent" />
-                    Crie sua conta para ver a explicação completa de cada
-                    alternativa.
-                  </p>
-                  <Button href="/cadastro" size="sm" className="w-full">
-                    Criar conta grátis <ArrowRight size={15} />
-                  </Button>
-                </div>
+                {!limitAtingido && (
+                  <div className="mt-3 flex flex-col items-start gap-2.5 rounded-2xl border border-dashed border-border-strong p-4">
+                    <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary">
+                      <Lock size={14} className="mt-0.5 shrink-0 text-accent" />
+                      Crie sua conta para ver a explicação completa de cada
+                      alternativa.
+                    </p>
+                    <Button href="/cadastro" size="sm" className="w-full">
+                      Criar conta grátis <ArrowRight size={15} />
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             )}
 
-            <button
-              type="button"
-              onClick={handleShuffle}
-              className="mt-4 flex items-center gap-1.5 text-xs font-medium text-text-tertiary transition-colors hover:text-accent cursor-pointer"
-            >
-              <Shuffle size={13} />
-              Tentar outra questão
-            </button>
+            {limitAtingido && (
+              <div className="mt-3 flex flex-col items-start gap-2.5 rounded-2xl border border-dashed border-border-strong p-4">
+                <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary">
+                  <Lock size={14} className="mt-0.5 shrink-0 text-accent" />
+                  Você usou suas {LIMITE_ANONIMO} perguntas grátis. Crie sua
+                  conta para continuar praticando sem limite.
+                </p>
+                <Button href="/cadastro" size="sm" className="w-full">
+                  Criar conta grátis <ArrowRight size={15} />
+                </Button>
+              </div>
+            )}
+
+            {!limitAtingido && (
+              <button
+                type="button"
+                onClick={handleShuffle}
+                className="mt-4 flex items-center gap-1.5 text-xs font-medium text-text-tertiary transition-colors hover:text-accent cursor-pointer"
+              >
+                <Shuffle size={13} />
+                Tentar outra questão
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

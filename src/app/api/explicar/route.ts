@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { explicarQuestao, type ExplicacaoIA } from "@/lib/gemini";
-import { explicarQuestaoGroq } from "@/lib/groq";
+import type { ExplicacaoIA } from "@/lib/gemini";
+import { explicarQuestaoIA } from "@/lib/ai-explicar";
 import type { Alternativa } from "@/lib/supabase/questoes";
 
 const TABELAS = { questoes: "questoes", simulado: "simulado_questoes" } as const;
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ explicacao: questao.explicacao_ia, cache: true });
   }
 
-  if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) {
+  if (!process.env.AI_API_KEY || !process.env.AI_ENDPOINT) {
     return NextResponse.json(
       { erro: "Explicação por IA ainda não configurada neste ambiente." },
       { status: 400 }
@@ -65,30 +65,12 @@ export async function POST(request: NextRequest) {
     temFigura: !!questao.tem_figura,
   };
 
-  let explicacao: ExplicacaoIA | null = null;
-  let erroFinal = "";
-
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      explicacao = await explicarQuestao(questaoInput);
-    } catch (e) {
-      erroFinal =
-        e instanceof Error ? e.message : "Falha ao gerar explicação (Gemini).";
-    }
-  }
-
-  if (!explicacao && process.env.GROQ_API_KEY) {
-    try {
-      explicacao = await explicarQuestaoGroq(questaoInput);
-    } catch (e) {
-      erroFinal =
-        e instanceof Error ? e.message : "Falha ao gerar explicação (Groq).";
-    }
-  }
-
-  if (!explicacao) {
+  let explicacao: ExplicacaoIA;
+  try {
+    explicacao = await explicarQuestaoIA(questaoInput);
+  } catch (e) {
     return NextResponse.json(
-      { erro: erroFinal || "Falha ao gerar explicação." },
+      { erro: e instanceof Error ? e.message : "Falha ao gerar explicação." },
       { status: 502 }
     );
   }

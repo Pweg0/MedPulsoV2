@@ -23,7 +23,7 @@ export function AuthLayout({
         className="dark relative hidden flex-col justify-between overflow-hidden px-14 py-14 lg:flex"
         style={{ backgroundColor: "var(--ink-900)" }}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-1/3 h-40 text-coral-500/25">
+        <div className="pointer-events-none absolute inset-x-0 top-1/3 h-40 text-accent/25">
           <PulseLine strokeWidth={2} />
         </div>
         <div className="pointer-events-none absolute -right-24 top-10 h-80 w-80 rounded-full bg-accent/15 blur-[100px]" />
