@@ -20,6 +20,7 @@ sem preâmbulo) com exatamente estas chaves:
  "quadro_associado": string (opcional),
  "dica_prova": string (opcional),
  "revisao_do_tema": string (SEMPRE preencher — revisão geral do tema, não só da alternativa),
+ "pontos_raciocinio": [{"ponto": string, "verbo": "identificar" | "correlacionar" | "diferenciar" | "associar" | "recordar"}] (SEMPRE preencher, 2 a 4 itens),
  "refutacoes": [{"letra": string, "tipo_erro": "conduta_certa_momento_errado" | "exame_indicado_mas_nao_o_primeiro" | "diagnostico_descartado_por_achado" | "dose_via_ou_duracao_errada" | "conduta_de_outro_nivel_de_atencao" | "contraindicado_no_caso" | "viola_norma_ou_legislacao" | "conceito_trocado" | "incompleto", "erro": string}],
  "pegadinha": string (opcional),
  "nota_de_atualizacao": string (opcional),
@@ -28,9 +29,7 @@ sem preâmbulo) com exatamente estas chaves:
  "confianca_leitura": "alta" | "media" | "baixa"
 }`;
 
-export async function explicarQuestaoIA(
-  q: QuestaoParaExplicar
-): Promise<ExplicacaoIA> {
+async function chamarProvedorIA(systemPrompt: string, userPrompt: string) {
   const apiKey = process.env.AI_API_KEY;
   const endpoint = process.env.AI_ENDPOINT;
   if (!apiKey || !endpoint) {
@@ -38,7 +37,6 @@ export async function explicarQuestaoIA(
   }
 
   const model = process.env.AI_MODEL;
-  const prompt = buildPrompt(q);
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -49,8 +47,8 @@ export async function explicarQuestaoIA(
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: `${SYSTEM}\n\n${JSON_SHAPE_HINT}` },
-        { role: "user", content: prompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
       temperature: 0.2,
@@ -64,11 +62,69 @@ export async function explicarQuestaoIA(
 
   const json = await res.json();
   const text = json.choices?.[0]?.message?.content;
-
   if (!text) {
     throw new Error("Resposta vazia da IA.");
   }
 
   const limpo = text.trim().replace(/^```(?:json)?\n?|```$/g, "");
-  return JSON.parse(limpo) as ExplicacaoIA;
+  return JSON.parse(limpo);
+}
+
+export async function explicarQuestaoIA(
+  q: QuestaoParaExplicar
+): Promise<ExplicacaoIA> {
+  const prompt = buildPrompt(q);
+  return chamarProvedorIA(
+    `${SYSTEM}\n\n${JSON_SHAPE_HINT}`,
+    prompt
+  ) as Promise<ExplicacaoIA>;
+}
+
+export type FlashcardIA = {
+  area_grande: string;
+  frente: string;
+  verso: string;
+};
+
+const AREAS_GRANDES = [
+  "Clínica Médica",
+  "Cirurgia",
+  "Pediatria",
+  "Ginecologia e Obstetrícia",
+  "Medicina Preventiva e Saúde Coletiva",
+];
+
+const FLASHCARD_SYSTEM = `Você cria flashcards de revisão pra um candidato de residência médica
+brasileira que acabou de errar uma questão. A partir do enunciado, alternativas e gabarito
+(e, se disponível, uma explicação já pronta), gere UM flashcard:
+- frente: uma pergunta curta e memorizável sobre o ponto que o candidato errou — não copie o
+  enunciado inteiro, condense pro conceito/conduta central que decide a questão.
+- verso: a resposta certa em 1-3 frases telegráficas, direto ao ponto, sem repetir a pergunta.
+- area_grande: classifique em EXATAMENTE uma destas 5 opções, a que melhor encaixa o tema
+  clínico da questão: ${AREAS_GRANDES.map((a) => `"${a}"`).join(", ")}.
+
+Responda em português do Brasil. Responda APENAS com um objeto JSON puro (sem markdown, sem
+crases, sem preâmbulo) no formato exato:
+{ "area_grande": string, "frente": string, "verso": string }`;
+
+export async function gerarFlashcardIA(params: {
+  enunciado: string;
+  alternativas: { letra: string; texto: string; correta: boolean }[];
+  explicacaoExistente?: { por_que_correta?: string; revisao_do_tema?: string } | null;
+}): Promise<FlashcardIA> {
+  const gabarito = params.alternativas.find((a) => a.correta)?.letra ?? "?";
+  const alts = params.alternativas
+    .map((a) => `${a.letra}) ${a.texto}`)
+    .join("\n");
+
+  let prompt = `Gabarito: ${gabarito}\n\nENUNCIADO:\n${params.enunciado}\n\nALTERNATIVAS:\n${alts}`;
+
+  if (params.explicacaoExistente?.por_que_correta) {
+    prompt += `\n\nPOR QUE A CORRETA ESTÁ CERTA:\n${params.explicacaoExistente.por_que_correta}`;
+  }
+  if (params.explicacaoExistente?.revisao_do_tema) {
+    prompt += `\n\nREVISÃO DO TEMA:\n${params.explicacaoExistente.revisao_do_tema}`;
+  }
+
+  return chamarProvedorIA(FLASHCARD_SYSTEM, prompt) as Promise<FlashcardIA>;
 }

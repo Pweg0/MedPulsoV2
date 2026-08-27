@@ -31,6 +31,7 @@
 
   --amber-400: #eab654;
   --amber-500: #d79a2c;
+  --amber-600: #b57a1f;
 
   --teal-400: #5fc9c0;
   --teal-500: #168a87;
@@ -87,7 +88,9 @@
   --color-vital: var(--vital);
   --color-vital-400: var(--vital-400);
   --color-vital-500: var(--vital-500);
+  --color-amber-400: var(--amber-400);
   --color-amber-500: var(--amber-500);
+  --color-amber-600: var(--amber-600);
   --color-coral-400: var(--coral-400);
   --color-coral-500: var(--coral-500);
   --color-coral-600: var(--coral-600);

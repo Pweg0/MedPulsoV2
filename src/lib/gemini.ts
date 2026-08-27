@@ -79,6 +79,17 @@ pra preencher):
   brasileira, ou o que checar primeiro). Uma frase. NUNCA invente um mnemônico novo na
   hora — só cite um se for de uso corrente reconhecido.
 
+Preencha SEMPRE pontos_raciocinio: de 2 a 4 pontos de decisão que reconstroem
+o caminho mental até o gabarito, do dado-chave da vinheta até a
+conduta/diagnóstico final — cada um com o texto do ponto (telegráfico, no
+mesmo tom de por_que_correta) e o verbo cognitivo que melhor descreve essa
+etapa: "identificar" (reconhecer um achado/mecanismo), "correlacionar"
+(ligar um achado a uma magnitude/consequência esperada), "diferenciar"
+(distinguir entre condutas/diagnósticos parecidos), "associar" (ligar
+achado a comorbidade/contexto) ou "recordar" (um fato/critério que precisa
+estar memorizado). Não force 4 pontos numa questão simples — 2 pontos bons
+valem mais que 4 forçados.
+
 Preencha SEMPRE revisao_do_tema: uma revisão geral do assunto da questão (não só da
 alternativa específica), como um resumo de aula pra quem vai prestar residência —
 definição, classificação, fisiopatologia essencial, achados clínicos centrais, fórmulas
@@ -109,6 +120,10 @@ export type ExplicacaoIA = {
   quadro_associado?: string;
   dica_prova?: string;
   revisao_do_tema: string;
+  pontos_raciocinio: {
+    ponto: string;
+    verbo: "identificar" | "correlacionar" | "diferenciar" | "associar" | "recordar";
+  }[];
   refutacoes: { letra: string; tipo_erro: string; erro: string }[];
   pegadinha?: string;
   nota_de_atualizacao?: string;

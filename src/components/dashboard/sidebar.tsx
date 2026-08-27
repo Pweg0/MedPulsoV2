@@ -28,8 +28,8 @@ const navItems = [
   { href: "/simulados", label: "Simulados", icon: FileText, live: true },
   { href: "#", label: "Material de Apoio", icon: GraduationCap, live: false },
   { href: "#", label: "Cronograma", icon: CalendarDays, live: false },
-  { href: "#", label: "Flashcards", icon: Layers, live: false },
-  { href: "#", label: "Caderno de Revisão", icon: NotebookPen, live: false },
+  { href: "/flashcards", label: "Flashcards", icon: Layers, live: true },
+  { href: "/revisao", label: "Caderno de Revisão", icon: NotebookPen, live: true },
   { href: "#", label: "Progresso", icon: LineChart, live: false },
 ];
 

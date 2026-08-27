@@ -216,15 +216,79 @@ Fluxo: cache-check na tabela certa → se vazio, chama `AI_ENDPOINT` com
 (cache compartilhado entre usuários). Sem retry/fallback — se o endpoint
 único falhar, a rota retorna erro 502 direto.
 
-**Status: build e lint verificados após o refactor, mas não testado
-end-to-end contra um endpoint real** — o usuário ainda precisa confirmar
-que `AI_ENDPOINT`/`AI_API_KEY`/`AI_MODEL` (setados manualmente, ver acima)
-respondem no formato esperado.
+**Status: confirmado funcionando end-to-end.** O usuário configurou
+`AI_ENDPOINT=https://api.xah.io/v1/chat/completions` (o path inicial
+`.../v1` sem `/chat/completions` dava 308 redirect → 503 "upstream gateway
+unavailable" no provedor; corrigido testando com `curl` direto). Confirmar
+que a mesma correção de `AI_ENDPOINT` foi aplicada nas env vars do Vercel
+(local e produção não sincronizam sozinhos) e que um redeploy foi feito.
+
+### Mapa de Raciocínio + Caderno de Revisão + Flashcards automáticos (novo, 2026-08-27)
+Inspirado numa dinâmica de plataforma concorrente que o usuário mostrou por
+print (só a mecânica de estudo, nenhum conteúdo copiado). Plano completo em
+`C:\Users\josue\.claude\plans\velvet-gathering-octopus.md`.
+
+**Schema** (`supabase/migrations/0008_pontos_flashcards.sql` — **usuário
+ainda precisa rodar no SQL Editor do Supabase**):
+- `tentativas` ganha `avaliacao_pontos jsonb` (`{tema, pontos: [{ponto,
+  verbo, nivel}]}`) e `proxima_revisao_em timestamptz`, mais uma policy de
+  `update` pra própria linha (não existia antes, só insert/select).
+- Tabela nova `tema_dominio` (user_id, tema, score, questoes_avaliadas) —
+  média móvel (`novo = antigo*0.7 + score*0.3`) do desempenho autoavaliado
+  por tema. **Só grava o dado — não existe ainda nenhum motor que consome
+  isso pra recomendar questões.** É a base de dados pra uma feature futura
+  ("Estudos Randomizados"/"Trilha de Aperfeiçoamento" adaptativa) que o
+  usuário descreveu mas pediu explicitamente pra não construir agora.
+- Tabela nova `flashcards` (user_id, questao_id, tentativa_id, area_grande,
+  frente, verso, revisado_em), `unique(user_id, questao_id)` — nunca gera
+  (nem cobra IA) duas vezes pro mesmo par usuário+questão.
+
+**Mapa de raciocínio** — `ExplicacaoIA.pontos_raciocinio` (novo campo, 2 a 4
+itens, `{ponto, verbo}` onde verbo é identificar/correlacionar/diferenciar/
+associar/recordar) é gerado pela mesma chamada de IA que já gera a
+explicação (`src/lib/gemini.ts` SYSTEM prompt + `src/lib/ai-explicar.ts`
+JSON_SHAPE_HINT). Em `practice-session.tsx`, depois de responder e a
+explicação estar carregada, aparece uma seção "Mapa de raciocínio" com 4
+pills por ponto (Dominei/Dúvida/Vacilei/Não sabia — cores vital/amber-400/
+amber-600/coral-500, precisou completar a escala amber no `globals.css`
+que só tinha o 500 exposto pro Tailwind). **É opcional, não bloqueia
+avançar** (decisão explícita do usuário). Salvar via
+`src/lib/supabase/pontos.ts` → `salvarAvaliacaoPonto()`, direto do client
+(sem rota de API, mesma RLS que já protege `tentativas`).
+
+**Caderno de Revisão** (`/revisao`) — pega a tentativa mais recente por
+questão do usuário (dedupe em JS, mesmo padrão de
+`src/lib/supabase/dashboard-data.ts`, sem RPC nova), filtra: errada→sempre
+entra; certa mas com "dúvida"/"não sabia" em algum ponto→entra
+(autodiagnóstico); certa só com "dominei"/"vacilei"→não entra. Ordena pelas
+mais atrasadas primeiro (`proxima_revisao_em`). Renderiza
+`<PracticeSession>` de novo — zero duplicação de UI de questão.
+
+**Flashcards** (`/flashcards`) — toda resposta errada dispara (fire-and-
+forget, não bloqueia a prática se falhar) `POST /api/flashcards/gerar`
+(`src/app/api/flashcards/gerar/route.ts`), que chama
+`gerarFlashcardIA()` (novo, em `src/lib/ai-explicar.ts`, mesmo provedor
+único `AI_ENDPOINT`) pra condensar a questão numa frente/verso e classificar
+numa das 5 grandes áreas clássicas de residência (Clínica Médica, Cirurgia,
+Pediatria, GO, Medicina Preventiva e Saúde Coletiva — fixas no prompt, não
+usam a taxonomia de 18 áreas do banco principal). UI em
+`src/components/flashcards/flashcard-browser.tsx`: agrupado por área, flip
+card, toggle Pendentes/Todos, botão "Revisei" marca `revisado_em`.
+
+**Escopo explícito, decidido com o usuário nesta sessão**: só vale no banco
+de questões (`/estudar`), **não** nos simulados cronometrados (`/simulados`)
+— não mexi em `simulado-session.tsx`.
+
+**Status**: lint + build passando. **Não testado end-to-end contra dados
+reais** — depende da migration 0008 rodar no Supabase, de um login real, e
+de uma questão errada de verdade pra confirmar que o flashcard é gerado e
+que o item aparece em `/revisao` e `/flashcards` (auth guard confirmado
+funcionando: redireciona pra `/login` sem sessão).
 
 ### `/dashboard` — hub do aluno
 Shell com sidebar (`components/dashboard/sidebar.tsx` — itens: Dashboard,
-Questões, **Simulados** (novo), Material de Apoio/Cronograma/Flashcards/
-Caderno de Revisão/Progresso ainda "em breve"). Conteúdo
+Questões, **Simulados**, **Flashcards** (novo), **Caderno de Revisão**
+(novo); Material de Apoio/Cronograma/Progresso ainda "em breve"). Conteúdo
 (`app/dashboard/page.tsx`):
 - Card de plano (teste grátis por `created_at + 7 dias`, contagem real de
   questões respondidas vs. tamanho do banco; Flashcards/IA "em breve" —
@@ -412,14 +476,18 @@ chegar sem sessão de cookie).
 ## A fazer / pendente
 
 **Bloqueado em você (usuário) — próximos passos imediatos**:
-- [ ] Setar `AI_ENDPOINT`/`AI_API_KEY`/`AI_MODEL` nas env vars do Vercel
-      (Settings → Environment Variables) — já estão no `.env.local` local,
-      mas Vercel não puxa esse arquivo automaticamente; sem isso em
-      produção, `/api/explicar` responde 400 "não configurada"
-- [ ] Testar de ponta a ponta que o endpoint configurado em `AI_ENDPOINT`
-      responde no formato esperado (chat.completions +
-      `response_format: json_object`) — só foi validado via lint/build,
-      nunca contra uma chamada real
+- [ ] Rodar `supabase/migrations/0008_pontos_flashcards.sql` no SQL Editor
+      (mapa de raciocínio + caderno de revisão + flashcards não funcionam
+      sem isso — tabelas `tema_dominio`/`flashcards` e colunas novas em
+      `tentativas` ainda não existem no banco)
+- [ ] Testar de ponta a ponta: errar uma questão em `/estudar/praticar`,
+      confirmar flashcard em `/flashcards`; acertar uma questão marcando
+      "Dúvida" num ponto do mapa de raciocínio, confirmar que ela aparece
+      em `/revisao`
+- [ ] Confirmar que `AI_ENDPOINT` no Vercel já está com o path corrigido
+      (`.../v1/chat/completions`, não só `.../v1`) e que houve redeploy —
+      local (`.env.local`) já está certo e testado (200 OK), Vercel foi
+      corrigido pelo usuário mas o redeploy não foi confirmado de volta
 - [ ] Rodar `supabase/migrations/0006_simulados.sql` no SQL Editor (as
       migrations 0001-0005 já estão aplicadas)
 - [ ] Testar `/simulados/indexar` de verdade no navegador (upload manual

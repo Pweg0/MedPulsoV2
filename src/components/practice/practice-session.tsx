@@ -20,6 +20,14 @@ import { useMounted } from "@/lib/use-mounted";
 import { FormattedText, decodeEntities } from "@/components/practice/formatted-text";
 import type { Questao, Alternativa } from "@/lib/supabase/questoes";
 import type { ExplicacaoIA } from "@/lib/gemini";
+import { salvarAvaliacaoPonto, type NivelAvaliacao } from "@/lib/supabase/pontos";
+
+const NIVEIS: { valor: NivelAvaliacao; label: string; className: string }[] = [
+  { valor: "dominei", label: "Dominei", className: "border-vital-500 bg-vital-500/10 text-vital-600 dark:text-vital-400" },
+  { valor: "duvida", label: "Dúvida", className: "border-amber-400 bg-amber-400/10 text-amber-500" },
+  { valor: "vacilei", label: "Vacilei", className: "border-amber-600 bg-amber-600/10 text-amber-600" },
+  { valor: "nao_sabia", label: "Não sabia", className: "border-coral-500 bg-coral-500/10 text-coral-500" },
+];
 
 const BASES: Record<string, string> = {
   protocolo_ms: "Ministério da Saúde",
@@ -84,6 +92,10 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
     null
   );
   const [stats, setStats] = useState<Record<string, Estatisticas>>({});
+  const [tentativaIds, setTentativaIds] = useState<Record<string, string>>({});
+  const [pontosPorQuestao, setPontosPorQuestao] = useState<
+    Record<string, Record<string, NivelAvaliacao>>
+  >({});
 
   const questao = order[index % order.length];
   const selected = answers[questao.id] ?? null;
@@ -133,10 +145,11 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
 
   async function handleSelect(letra: string) {
     if (answered) return;
-    setAnswers((prev) => ({ ...prev, [questao.id]: letra }));
+    const questaoAtual = questao;
+    setAnswers((prev) => ({ ...prev, [questaoAtual.id]: letra }));
     setAiErro(null);
 
-    const alt = questao.alternativas.find((a) => a.letra === letra);
+    const alt = questaoAtual.alternativas.find((a) => a.letra === letra);
     const acertou = alt?.correta ?? false;
     setAnsweredCount((c) => c + 1);
     if (acertou) setCorrectCount((c) => c + 1);
@@ -144,14 +157,56 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
     if (user) {
       setSaving(true);
       const supabase = createClient();
-      await supabase.from("tentativas").insert({
-        user_id: user.id,
-        questao_id: questao.id,
-        resposta_letra: letra,
-        acertou,
-      });
+      const { data: tentativa } = await supabase
+        .from("tentativas")
+        .insert({
+          user_id: user.id,
+          questao_id: questaoAtual.id,
+          resposta_letra: letra,
+          acertou,
+        })
+        .select("id")
+        .single();
       setSaving(false);
+
+      if (tentativa) {
+        setTentativaIds((prev) => ({ ...prev, [questaoAtual.id]: tentativa.id }));
+      }
+
+      if (!acertou) {
+        fetch("/api/flashcards/gerar", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            questaoId: questaoAtual.id,
+            tentativaId: tentativa?.id ?? null,
+          }),
+        }).catch(() => {});
+      }
     }
+  }
+
+  function handleAvaliarPonto(ponto: string, verbo: string, nivel: NivelAvaliacao) {
+    const idTentativa = tentativaIds[questao.id];
+    const temaAtual = ai?.tema;
+    if (!idTentativa || !temaAtual) return;
+
+    const atualizados = {
+      ...(pontosPorQuestao[questao.id] ?? {}),
+      [ponto]: nivel,
+    };
+    setPontosPorQuestao((prev) => ({ ...prev, [questao.id]: atualizados }));
+
+    const pontosParaSalvar = Object.entries(atualizados).map(([p, n]) => {
+      const original = ai?.pontos_raciocinio.find((pr) => pr.ponto === p);
+      return { ponto: p, verbo: original?.verbo ?? verbo, nivel: n };
+    });
+
+    salvarAvaliacaoPonto({
+      tentativaId: idTentativa,
+      tema: temaAtual,
+      pontos: pontosParaSalvar,
+    }).catch(() => {});
   }
 
   async function handleGerarExplicacao() {
@@ -626,6 +681,49 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                           {ai.fonte}
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {ai.pontos_raciocinio && ai.pontos_raciocinio.length > 0 && (
+                    <div className="mt-5 rounded-xl border border-border-strong bg-bg-elevated p-4">
+                      <h4 className="font-mono text-[11px] uppercase tracking-wider text-accent">
+                        Mapa de raciocínio
+                      </h4>
+                      <p className="mt-1 text-xs text-text-tertiary">
+                        Avalie honestamente cada ponto — isso ajusta seu Caderno de
+                        Revisão (opcional).
+                      </p>
+                      <div className="mt-3 flex flex-col gap-3">
+                        {ai.pontos_raciocinio.map((p, i) => {
+                          const nivelAtual = pontosPorQuestao[questao.id]?.[p.ponto];
+                          return (
+                            <div key={i}>
+                              <p className="text-sm leading-relaxed text-text-secondary">
+                                {p.ponto}
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                {NIVEIS.map((n) => (
+                                  <button
+                                    key={n.valor}
+                                    type="button"
+                                    onClick={() =>
+                                      handleAvaliarPonto(p.ponto, p.verbo, n.valor)
+                                    }
+                                    className={cn(
+                                      "rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors cursor-pointer",
+                                      nivelAtual === n.valor
+                                        ? n.className
+                                        : "border-border-strong text-text-tertiary hover:border-accent hover:text-accent"
+                                    )}
+                                  >
+                                    {n.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </motion.div>
