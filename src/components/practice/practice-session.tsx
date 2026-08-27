@@ -23,10 +23,10 @@ import type { ExplicacaoIA } from "@/lib/gemini";
 import { salvarAvaliacaoPonto, type NivelAvaliacao } from "@/lib/supabase/pontos";
 
 const NIVEIS: { valor: NivelAvaliacao; label: string; className: string }[] = [
-  { valor: "dominei", label: "Dominei", className: "border-vital-500 bg-vital-500/10 text-vital-600 dark:text-vital-400" },
-  { valor: "duvida", label: "Dúvida", className: "border-amber-400 bg-amber-400/10 text-amber-500" },
-  { valor: "vacilei", label: "Vacilei", className: "border-amber-600 bg-amber-600/10 text-amber-600" },
-  { valor: "nao_sabia", label: "Não sabia", className: "border-coral-500 bg-coral-500/10 text-coral-500" },
+  { valor: "dominei", label: "Dominei", className: "border-vital-500 bg-vital-500 text-on-accent" },
+  { valor: "duvida", label: "Dúvida", className: "border-amber-400 bg-amber-400 text-on-accent" },
+  { valor: "vacilei", label: "Vacilei", className: "border-amber-600 bg-amber-600 text-on-accent" },
+  { valor: "nao_sabia", label: "Não sabia", className: "border-orange-500 bg-orange-500 text-on-accent" },
 ];
 
 const BASES: Record<string, string> = {
@@ -61,6 +61,108 @@ function shuffle<T>(arr: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
+}
+
+type PontoRaciocinio = { ponto: string; verbo: string };
+
+function MapaDeRaciocinio({
+  pontos,
+  niveis,
+  onAvaliar,
+}: {
+  pontos: PontoRaciocinio[];
+  niveis: Record<string, NivelAvaliacao>;
+  onAvaliar: (ponto: string, verbo: string, nivel: NivelAvaliacao) => void;
+}) {
+  const [indice, setIndice] = useState(() => {
+    const primeiroPendente = pontos.findIndex((p) => !niveis[p.ponto]);
+    return primeiroPendente === -1 ? pontos.length : primeiroPendente;
+  });
+
+  const concluido = indice >= pontos.length;
+  const atual = !concluido ? pontos[indice] : null;
+
+  return (
+    <div className="rounded-xl border border-border-strong bg-bg-elevated p-4">
+      <div className="flex items-center justify-between">
+        <h4 className="font-mono text-[11px] uppercase tracking-wider text-accent">
+          Mapa de raciocínio
+        </h4>
+        {!concluido && (
+          <span className="font-mono text-[10px] text-text-tertiary">
+            {indice + 1}/{pontos.length}
+          </span>
+        )}
+      </div>
+
+      {!concluido && (
+        <div className="mt-2 flex gap-1">
+          {pontos.map((_, i) => (
+            <span
+              key={i}
+              className={cn(
+                "h-1 flex-1 rounded-full",
+                i <= indice ? "bg-accent" : "bg-border-strong"
+              )}
+            />
+          ))}
+        </div>
+      )}
+
+      <AnimatePresence mode="wait">
+        {concluido ? (
+          <motion.p
+            key="concluido"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mt-2 flex items-center gap-1.5 text-xs text-vital-600 dark:text-vital-400"
+          >
+            <Check size={13} /> Mapa de raciocínio avaliado.
+          </motion.p>
+        ) : (
+          atual && (
+            <motion.div
+              key={indice}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+                {atual.ponto}
+              </p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                {NIVEIS.map((n) => (
+                  <button
+                    key={n.valor}
+                    type="button"
+                    onClick={() => {
+                      onAvaliar(atual.ponto, atual.verbo, n.valor);
+                      setIndice((i) => i + 1);
+                    }}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors cursor-pointer",
+                      n.className
+                    )}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setIndice((i) => i + 1)}
+                  className="ml-1 font-mono text-[11px] text-text-tertiary transition-colors hover:text-accent cursor-pointer"
+                >
+                  Pular
+                </button>
+              </div>
+            </motion.div>
+          )
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 function altExplicacao(alt: Alternativa) {
@@ -533,9 +635,17 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                   transition={{ duration: 0.3 }}
                   className="mt-5 overflow-hidden rounded-2xl border border-border bg-bg-inset p-5 sm:p-6"
                 >
+                  {ai.pontos_raciocinio && ai.pontos_raciocinio.length > 0 && (
+                    <MapaDeRaciocinio
+                      pontos={ai.pontos_raciocinio}
+                      niveis={pontosPorQuestao[questao.id] ?? {}}
+                      onAvaliar={handleAvaliarPonto}
+                    />
+                  )}
+
                   {ai.dado_chave_da_vinheta && (
                     <>
-                      <h4 className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
+                      <h4 className="mt-5 font-mono text-[11px] uppercase tracking-wider text-text-tertiary">
                         O dado que decide a questão
                       </h4>
                       <p className="mt-2 rounded-xl border border-vital-500/30 bg-vital-500/10 p-3 font-display text-sm italic leading-relaxed text-text-secondary">
@@ -684,48 +794,6 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                     </div>
                   )}
 
-                  {ai.pontos_raciocinio && ai.pontos_raciocinio.length > 0 && (
-                    <div className="mt-5 rounded-xl border border-border-strong bg-bg-elevated p-4">
-                      <h4 className="font-mono text-[11px] uppercase tracking-wider text-accent">
-                        Mapa de raciocínio
-                      </h4>
-                      <p className="mt-1 text-xs text-text-tertiary">
-                        Avalie honestamente cada ponto — isso ajusta seu Caderno de
-                        Revisão (opcional).
-                      </p>
-                      <div className="mt-3 flex flex-col gap-3">
-                        {ai.pontos_raciocinio.map((p, i) => {
-                          const nivelAtual = pontosPorQuestao[questao.id]?.[p.ponto];
-                          return (
-                            <div key={i}>
-                              <p className="text-sm leading-relaxed text-text-secondary">
-                                {p.ponto}
-                              </p>
-                              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {NIVEIS.map((n) => (
-                                  <button
-                                    key={n.valor}
-                                    type="button"
-                                    onClick={() =>
-                                      handleAvaliarPonto(p.ponto, p.verbo, n.valor)
-                                    }
-                                    className={cn(
-                                      "rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors cursor-pointer",
-                                      nivelAtual === n.valor
-                                        ? n.className
-                                        : "border-border-strong text-text-tertiary hover:border-accent hover:text-accent"
-                                    )}
-                                  >
-                                    {n.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </motion.div>
               )}
 
