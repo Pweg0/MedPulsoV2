@@ -569,6 +569,7 @@ export function PracticeSession({
               <HighlightableText
                 text={questao.enunciado}
                 className="mt-5 text-base leading-relaxed text-text-primary"
+                storageKey={questao.id}
               />
 
               <div className="mt-6 flex flex-col gap-3">
