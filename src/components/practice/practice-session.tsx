@@ -174,19 +174,26 @@ export function PracticeSession({
   questoes,
   prevalenciaPorQuestao = {},
   bloco = false,
+  respostasIniciais = {},
 }: {
   questoes: Questao[];
   prevalenciaPorQuestao?: Record<string, { prevalencia: number; tema: string }>;
   bloco?: boolean;
+  respostasIniciais?: Record<string, string>;
 }) {
   const { user } = useAuth();
   const mounted = useMounted();
   const [order] = useState(() => shuffle(questoes));
   const [index, setIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(respostasIniciais);
   const [saving, setSaving] = useState(false);
-  const [answeredCount, setAnsweredCount] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
+  const [answeredCount, setAnsweredCount] = useState(() => Object.keys(respostasIniciais).length);
+  const [correctCount, setCorrectCount] = useState(() =>
+    questoes.reduce((total, q) => {
+      const resposta = respostasIniciais[q.id];
+      return total + (resposta && q.alternativas.find((a) => a.letra === resposta)?.correta ? 1 : 0);
+    }, 0)
+  );
   const [aiExplicacoes, setAiExplicacoes] = useState<Record<string, ExplicacaoIA>>(
     () => {
       const cache: Record<string, ExplicacaoIA> = {};

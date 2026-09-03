@@ -35,6 +35,20 @@ export default async function RetaFinalPage({
   let blocos: { id: string; numero: number; quantidade: number; questao_ids: string[]; questoes_feitas: number; acertos: number; percentual: number }[] = [];
   const { data: blocosData } = await supabase.rpc("listar_reta_final_blocos", { p_user_id: user.id });
   blocos = (blocosData as typeof blocos | null) ?? [];
+  const respostasSalvas: Record<string, string> = {};
+  if (idsPersistidos.length > 0) {
+    const { data: tentativas } = await supabase
+      .from("tentativas")
+      .select("questao_id, resposta_letra, created_at")
+      .eq("user_id", user.id)
+      .in("questao_id", idsPersistidos)
+      .order("created_at", { ascending: false });
+    for (const tentativa of tentativas ?? []) {
+      if (!respostasSalvas[tentativa.questao_id]) {
+        respostasSalvas[tentativa.questao_id] = tentativa.resposta_letra;
+      }
+    }
+  }
   const { data, error } = iniciou
     ? await supabase.rpc("buscar_reta_final", {
         p_user_id: user.id,
@@ -132,7 +146,7 @@ export default async function RetaFinalPage({
           A seleção ainda não foi preparada no banco. Execute a migration `0009_reta_final.sql` e o script de análise.
         </div>
       ) : questoes.length > 0 ? (
-        <PracticeSession questoes={questoes} prevalenciaPorQuestao={prevalenciaPorQuestao} bloco />
+        <PracticeSession questoes={questoes} prevalenciaPorQuestao={prevalenciaPorQuestao} bloco respostasIniciais={respostasSalvas} />
       ) : (
         <div className="rounded-3xl border border-dashed border-border-strong p-8 text-center text-sm text-text-tertiary">
           {iniciou ? "Nenhuma questão encontrada com esse filtro. Tente outro tipo de bloco." : "Escolha o tamanho e inicie seu primeiro bloco de revisão."}
