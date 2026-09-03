@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ explicacao: questao.explicacao_ia, cache: true });
   }
 
-  if (!(process.env.RETA_FINAL_AI_API_KEY || process.env.AI_API_KEY) || !process.env.AI_ENDPOINT) {
+  if (!(process.env.RETA_FINAL_AI_API_KEY || process.env.AI_API_KEY) || !(process.env.RETA_FINAL_AI_ENDPOINT || process.env.AI_ENDPOINT)) {
     return NextResponse.json(
       { erro: "Explicação por IA ainda não configurada neste ambiente." },
       { status: 400 }
