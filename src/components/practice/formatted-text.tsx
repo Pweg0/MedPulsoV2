@@ -38,9 +38,11 @@ function renderInline(line: string) {
 export function FormattedText({
   text,
   className,
+  formatAssertivas = false,
 }: {
   text: string;
   className?: string;
+  formatAssertivas?: boolean;
 }) {
   const paragraphs = decodeEntities(text)
     .split(/\n+/)
@@ -50,10 +52,45 @@ export function FormattedText({
   return (
     <div className={className}>
       {paragraphs.map((p, i) => (
-        <p key={i} className={i > 0 ? "mt-2" : undefined}>
-          {renderInline(p)}
-        </p>
+        <FormattedParagraph key={i} text={p} formatAssertivas={formatAssertivas} first={i === 0} />
       ))}
+    </div>
+  );
+}
+
+function FormattedParagraph({
+  text,
+  formatAssertivas,
+  first,
+}: {
+  text: string;
+  formatAssertivas: boolean;
+  first: boolean;
+}) {
+  if (!formatAssertivas) {
+    return <p className={first ? undefined : "mt-2"}>{renderInline(text)}</p>;
+  }
+
+  const partes = text.split(/\s+(?=(?:IV|IX|V?I{1,3}|X{1,3}|XL|L)\s*[-–.)]\s*)/);
+  if (partes.length === 1) {
+    return <p className={first ? undefined : "mt-2"}>{renderInline(text)}</p>;
+  }
+
+  const introducao = partes.shift();
+  return (
+    <div className={first ? undefined : "mt-2"}>
+      {introducao && <p>{renderInline(introducao)}</p>}
+      <div className="mt-3 flex flex-col gap-2">
+        {partes.map((parte, index) => {
+          const match = parte.match(/^((?:IV|IX|V?I{1,3}|X{1,3}|XL|L))\s*[-–.)]\s*(.*)$/);
+          return (
+            <div key={index} className="flex items-start gap-3 rounded-xl border border-border-strong bg-bg-inset/60 px-3 py-2.5">
+              <span className="shrink-0 font-mono text-xs font-semibold text-accent">{match?.[1] ?? ""}</span>
+              <span className="text-text-primary">{renderInline(match?.[2] ?? parte)}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

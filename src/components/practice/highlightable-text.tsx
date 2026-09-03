@@ -130,7 +130,7 @@ export function HighlightableText({ text, className, storageKey }: { text: strin
         </button>
         <span className="ml-1 text-text-tertiary">selecione o texto para marcar</span>
       </div>
-      <FormattedText text={text} className={className} />
+      <FormattedText text={text} className={className} formatAssertivas />
     </div>
   );
 }
