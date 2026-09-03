@@ -11,19 +11,23 @@ export const metadata: Metadata = { title: "Reta Final Revalida — MedPulso.ia"
 export default async function RetaFinalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ quantidade?: string; semRespondidas?: string }>;
+  searchParams: Promise<{ quantidade?: string; iniciar?: string; filtro?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const params = await searchParams;
   const quantidade = Math.min(200, Math.max(5, Number(params.quantidade) || 50));
-  const apenasNaoRespondidas = params.semRespondidas === "1";
+  const iniciou = params.iniciar === "1";
+  const filtro = params.filtro === "erradas" ? "erradas" : params.filtro === "todas" ? "todas" : "novas";
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("buscar_reta_final", {
-    p_user_id: user.id,
-    p_limit: quantidade,
-    p_apenas_nao_respondidas: apenasNaoRespondidas,
-  });
+  const { data, error } = iniciou
+    ? await supabase.rpc("buscar_reta_final", {
+        p_user_id: user.id,
+        p_limit: quantidade,
+        p_apenas_nao_respondidas: filtro === "novas",
+        p_apenas_erradas: filtro === "erradas",
+      })
+    : { data: null, error: null };
   const questoes = (data as RetaFinalQuestao[] | null) ?? [];
   const prevalenciaPorQuestao = Object.fromEntries(
     questoes.map((q) => [q.id, { prevalencia: Number(q.prevalencia), tema: q.tema }])
@@ -39,17 +43,21 @@ export default async function RetaFinalPage({
             Questões do banco relacionadas aos temas mais recorrentes nas edições anteriores. Os PDFs foram usados apenas para análise de prevalência.
           </p>
         </div>
-        <form className="flex flex-wrap items-center gap-2 text-xs" method="get">
-          <label className="text-text-tertiary" htmlFor="quantidade">Questões</label>
-          <select id="quantidade" name="quantidade" defaultValue={String(quantidade)} className="rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary">
-            {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-          <label className="flex items-center gap-1.5 text-text-secondary">
-            <input type="checkbox" name="semRespondidas" value="1" defaultChecked={apenasNaoRespondidas} />
-            não respondidas
-          </label>
-          <button type="submit" className="rounded-lg bg-accent px-3 py-2 font-medium text-on-accent">Aplicar</button>
-        </form>
+        {!iniciou && (
+          <form className="flex flex-wrap items-center gap-2 text-xs" method="get">
+            <input type="hidden" name="iniciar" value="1" />
+            <label className="text-text-tertiary" htmlFor="quantidade">Questões</label>
+            <select id="quantidade" name="quantidade" defaultValue={String(quantidade)} className="rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary">
+              {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <select name="filtro" defaultValue="novas" className="rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary">
+              <option value="novas">Somente não respondidas</option>
+              <option value="erradas">Somente erradas</option>
+              <option value="todas">Mostrar todas</option>
+            </select>
+            <button type="submit" className="rounded-lg bg-accent px-3 py-2 font-medium text-on-accent">Iniciar bloco de revisão</button>
+          </form>
+        )}
       </div>
 
       {error ? (
@@ -57,10 +65,10 @@ export default async function RetaFinalPage({
           A seleção ainda não foi preparada no banco. Execute a migration `0009_reta_final.sql` e o script de análise.
         </div>
       ) : questoes.length > 0 ? (
-        <PracticeSession questoes={questoes} prevalenciaPorQuestao={prevalenciaPorQuestao} />
+        <PracticeSession questoes={questoes} prevalenciaPorQuestao={prevalenciaPorQuestao} bloco />
       ) : (
         <div className="rounded-3xl border border-dashed border-border-strong p-8 text-center text-sm text-text-tertiary">
-          Nenhuma questão encontrada. Tente incluir questões já respondidas ou rode novamente a análise.
+          {iniciou ? "Nenhuma questão encontrada com esse filtro. Tente outro tipo de bloco." : "Escolha o tamanho e inicie seu primeiro bloco de revisão."}
         </div>
       )}
     </Container>

@@ -172,9 +172,11 @@ function altExplicacao(alt: Alternativa) {
 export function PracticeSession({
   questoes,
   prevalenciaPorQuestao = {},
+  bloco = false,
 }: {
   questoes: Questao[];
   prevalenciaPorQuestao?: Record<string, { prevalencia: number; tema: string }>;
+  bloco?: boolean;
 }) {
   const { user } = useAuth();
   const mounted = useMounted();
@@ -375,6 +377,36 @@ export function PracticeSession({
           </span>
         )}
       </div>
+
+      {bloco && (
+        <div className="mb-6 rounded-2xl border border-border bg-bg-elevated p-3">
+          <div className="flex flex-wrap gap-1.5">
+            {order.map((q, i) => {
+              const resposta = answers[q.id];
+              const acertou = resposta && q.alternativas.find((a) => a.letra === resposta)?.correta;
+              return (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  aria-label={`Ir para questão ${i + 1}${resposta ? acertou ? ", correta" : ", errada" : ", não respondida"}`}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-lg border font-mono text-[11px] transition-colors cursor-pointer",
+                    i === index && "ring-2 ring-accent",
+                    resposta
+                      ? acertou
+                        ? "border-vital-500 bg-vital-500/20 text-vital-600 dark:text-vital-400"
+                        : "border-coral-500 bg-coral-500/20 text-coral-600 dark:text-coral-400"
+                      : "border-border-strong bg-bg-inset text-text-tertiary hover:border-accent"
+                  )}
+                >
+                  {i + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-stretch gap-2 sm:gap-3">
         <button
@@ -839,6 +871,24 @@ export function PracticeSession({
           <ChevronRight size={18} />
         </button>
       </div>
+
+      {bloco && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <a href="/reta-final" className="font-mono text-xs text-text-tertiary hover:text-accent">
+            Encerrar bloco
+          </a>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-xs text-text-secondary">
+              {answeredCount}/{questoes.length} · {answeredCount ? Math.round((correctCount / answeredCount) * 100) : 0}% de acerto
+            </span>
+            {answeredCount === questoes.length && (
+              <a href="/reta-final" className="rounded-full bg-accent px-4 py-2 font-mono text-xs font-semibold text-on-accent">
+                Iniciar outro bloco
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
