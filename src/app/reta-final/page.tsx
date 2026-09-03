@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Reta Final Revalida — MedPulso.ia"
 export default async function RetaFinalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ quantidade?: string; iniciar?: string; filtro?: string; tema?: string | string[]; area?: string | string[]; randomizar?: string }>;
+  searchParams: Promise<{ quantidade?: string; iniciar?: string; filtro?: string; tema?: string | string[]; area?: string | string[]; randomizar?: string; ids?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -23,6 +23,7 @@ export default async function RetaFinalPage({
   const temasSelecionados = Array.isArray(params.tema) ? params.tema : params.tema ? [params.tema] : [];
   const areasSelecionadas = Array.isArray(params.area) ? params.area : params.area ? [params.area] : [];
   const randomizar = params.randomizar !== "0";
+  const idsPersistidos = params.ids?.split(",").filter(Boolean) ?? [];
   const supabase = await createClient();
   const { data: temasData } = await supabase.from("reta_final_temas").select("id, nome, area_grande, prevalencia").order("area_grande").order("prevalencia", { ascending: false });
   const temas = (temasData as { id: string; nome: string; area_grande: string; prevalencia: number }[] | null) ?? [];
@@ -31,17 +32,28 @@ export default async function RetaFinalPage({
     ? await supabase.rpc("buscar_reta_final", {
         p_user_id: user.id,
         p_limit: quantidade,
-        p_apenas_nao_respondidas: filtro === "novas",
-        p_apenas_erradas: filtro === "erradas",
+        p_apenas_nao_respondidas: !idsPersistidos.length && filtro === "novas",
+        p_apenas_erradas: !idsPersistidos.length && filtro === "erradas",
         p_tema_ids: temasSelecionados.length ? temasSelecionados : null,
         p_area_grandes: areasSelecionadas.length ? areasSelecionadas : null,
         p_randomizar: randomizar,
+        p_questao_ids: idsPersistidos.length ? idsPersistidos : null,
       })
     : { data: null, error: null };
   const questoes = (data as RetaFinalQuestao[] | null) ?? [];
   const prevalenciaPorQuestao = Object.fromEntries(
     questoes.map((q) => [q.id, { prevalencia: Number(q.prevalencia), tema: q.tema }])
   );
+
+  if (iniciou && questoes.length > 0 && idsPersistidos.length === 0) {
+    const query = new URLSearchParams();
+    query.set("iniciar", "1");
+    query.set("quantidade", String(quantidade));
+    query.set("filtro", filtro);
+    query.set("randomizar", randomizar ? "1" : "0");
+    query.set("ids", questoes.map((q) => q.id).join(","));
+    redirect(`/reta-final?${query.toString()}`);
+  }
 
   return (
     <Container className="max-w-none py-12 lg:px-12">
