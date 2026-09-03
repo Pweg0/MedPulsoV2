@@ -5,13 +5,14 @@ import { PracticeSession } from "@/components/practice/practice-session";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { createClient } from "@/lib/supabase/server";
 import type { RetaFinalQuestao } from "@/lib/supabase/questoes";
+import { Menu } from "lucide-react";
 
 export const metadata: Metadata = { title: "Reta Final Revalida — MedPulso.ia" };
 
 export default async function RetaFinalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ quantidade?: string; iniciar?: string; filtro?: string }>;
+  searchParams: Promise<{ quantidade?: string; iniciar?: string; filtro?: string; tema?: string | string[]; area?: string | string[]; randomizar?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -19,13 +20,22 @@ export default async function RetaFinalPage({
   const quantidade = Math.min(200, Math.max(5, Number(params.quantidade) || 50));
   const iniciou = params.iniciar === "1";
   const filtro = params.filtro === "erradas" ? "erradas" : params.filtro === "todas" ? "todas" : "novas";
+  const temasSelecionados = Array.isArray(params.tema) ? params.tema : params.tema ? [params.tema] : [];
+  const areasSelecionadas = Array.isArray(params.area) ? params.area : params.area ? [params.area] : [];
+  const randomizar = params.randomizar !== "0";
   const supabase = await createClient();
+  const { data: temasData } = await supabase.from("reta_final_temas").select("id, nome, area_grande, prevalencia").order("area_grande").order("prevalencia", { ascending: false });
+  const temas = (temasData as { id: string; nome: string; area_grande: string; prevalencia: number }[] | null) ?? [];
+  const areas = [...new Set(temas.map((tema) => tema.area_grande))];
   const { data, error } = iniciou
     ? await supabase.rpc("buscar_reta_final", {
         p_user_id: user.id,
         p_limit: quantidade,
         p_apenas_nao_respondidas: filtro === "novas",
         p_apenas_erradas: filtro === "erradas",
+        p_tema_ids: temasSelecionados.length ? temasSelecionados : null,
+        p_area_grandes: areasSelecionadas.length ? areasSelecionadas : null,
+        p_randomizar: randomizar,
       })
     : { data: null, error: null };
   const questoes = (data as RetaFinalQuestao[] | null) ?? [];
@@ -55,6 +65,34 @@ export default async function RetaFinalPage({
               <option value="erradas">Somente erradas</option>
               <option value="todas">Mostrar todas</option>
             </select>
+            <label className="flex items-center gap-1.5 text-text-secondary">
+              <input type="checkbox" name="randomizar" value="1" defaultChecked />
+              randomizar
+            </label>
+            <details className="relative basis-full sm:basis-auto">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border-strong bg-bg-elevated px-3 py-2 text-text-secondary">
+                <Menu size={14} /> áreas e temas
+              </summary>
+              <div className="absolute right-0 z-10 mt-2 max-h-[60vh] w-[min(92vw,420px)] overflow-y-auto rounded-2xl border border-border bg-bg-elevated p-3 shadow-xl">
+                <p className="mb-3 text-[11px] text-text-tertiary">Sem seleção, todas as áreas entram. Com seleção, a quantidade é distribuída igualmente entre os grupos.</p>
+                {areas.map((area) => (
+                  <details key={area} className="border-b border-border py-2 last:border-0">
+                    <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-text-primary">
+                      <input type="checkbox" name="area" value={area} onClick={(event) => event.stopPropagation()} />
+                      {area}
+                    </summary>
+                    <div className="mt-2 grid gap-1 pl-6">
+                      {temas.filter((tema) => tema.area_grande === area).map((tema) => (
+                        <label key={tema.id} className="flex items-start gap-2 text-xs text-text-secondary">
+                          <input type="checkbox" name="tema" value={tema.id} />
+                          <span>{tema.nome} <span className="font-mono text-[10px] text-accent">{Math.round(Number(tema.prevalencia))}%</span></span>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </details>
             <button type="submit" className="rounded-lg bg-accent px-3 py-2 font-medium text-on-accent">Iniciar bloco de revisão</button>
           </form>
         )}
