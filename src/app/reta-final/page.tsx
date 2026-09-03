@@ -76,20 +76,22 @@ export default async function RetaFinalPage({
               <div className="absolute right-0 z-10 mt-2 max-h-[60vh] w-[min(92vw,420px)] overflow-y-auto rounded-2xl border border-border bg-bg-elevated p-3 shadow-xl">
                 <p className="mb-3 text-[11px] text-text-tertiary">Sem seleção, todas as áreas entram. Com seleção, a quantidade é distribuída igualmente entre os grupos.</p>
                 {areas.map((area) => (
-                  <details key={area} className="border-b border-border py-2 last:border-0">
-                    <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-text-primary">
-                      <input type="checkbox" name="area" value={area} onClick={(event) => event.stopPropagation()} />
-                      {area}
-                    </summary>
-                    <div className="mt-2 grid gap-1 pl-6">
-                      {temas.filter((tema) => tema.area_grande === area).map((tema) => (
-                        <label key={tema.id} className="flex items-start gap-2 text-xs text-text-secondary">
-                          <input type="checkbox" name="tema" value={tema.id} />
-                          <span>{tema.nome} <span className="font-mono text-[10px] text-accent">{Math.round(Number(tema.prevalencia))}%</span></span>
-                        </label>
-                      ))}
-                    </div>
-                  </details>
+                  <div key={area} className="flex items-start gap-2 border-b border-border py-2 last:border-0">
+                    <input className="mt-1" type="checkbox" name="area" value={area} />
+                    <details className="min-w-0 flex-1">
+                      <summary className="cursor-pointer text-sm font-medium text-text-primary">
+                        {area}
+                      </summary>
+                      <div className="mt-2 grid gap-1 pl-2">
+                        {temas.filter((tema) => tema.area_grande === area).map((tema) => (
+                          <label key={tema.id} className="flex items-start gap-2 text-xs text-text-secondary">
+                            <input type="checkbox" name="tema" value={tema.id} />
+                            <span>{tema.nome} <span className="font-mono text-[10px] text-accent">{Math.round(Number(tema.prevalencia))}%</span></span>
+                          </label>
+                        ))}
+                      </div>
+                    </details>
+                  </div>
                 ))}
               </div>
             </details>
