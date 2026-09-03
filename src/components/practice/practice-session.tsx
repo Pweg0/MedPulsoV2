@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -21,6 +21,7 @@ import { FormattedText, decodeEntities } from "@/components/practice/formatted-t
 import type { Questao, Alternativa } from "@/lib/supabase/questoes";
 import type { ExplicacaoIA } from "@/lib/gemini";
 import { salvarAvaliacaoPonto, type NivelAvaliacao } from "@/lib/supabase/pontos";
+import { HighlightableText } from "@/components/practice/highlightable-text";
 
 const NIVEIS: { valor: NivelAvaliacao; label: string; className: string }[] = [
   { valor: "dominei", label: "Dominei", className: "border-vital-500 bg-vital-500 text-on-accent" },
@@ -206,6 +207,39 @@ export function PracticeSession({
   const [pontosPorQuestao, setPontosPorQuestao] = useState<
     Record<string, Record<string, NivelAvaliacao>>
   >({});
+  const [precacheConcluidos, setPrecacheConcluidos] = useState(0);
+  const precacheIniciado = useRef(false);
+
+  useEffect(() => {
+    if (!bloco || precacheIniciado.current) return;
+    precacheIniciado.current = true;
+    const pendentes = questoes.filter((q) => !q.explicacao_ia);
+    if (pendentes.length === 0) return;
+    let proximo = 0;
+    let cancelado = false;
+    async function trabalhador() {
+      while (proximo < pendentes.length) {
+        const q = pendentes[proximo++];
+        try {
+          const resposta = await fetch("/api/explicar", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ questaoId: q.id }),
+          });
+          const json = await resposta.json();
+          if (resposta.ok && json.explicacao && !cancelado) {
+            setAiExplicacoes((prev) => ({ ...prev, [q.id]: json.explicacao }));
+          }
+        } catch {
+          // A sessão continua utilizável mesmo se uma pré-carga falhar.
+        } finally {
+          if (!cancelado) setPrecacheConcluidos((valor) => valor + 1);
+        }
+      }
+    }
+    void Promise.all([trabalhador(), trabalhador()]);
+    return () => { cancelado = true; };
+  }, [bloco, questoes]);
 
   const questao = order[index % order.length];
   const selected = answers[questao.id] ?? null;
@@ -376,6 +410,9 @@ export function PracticeSession({
             <Loader2 size={12} className="animate-spin" /> salvando
           </span>
         )}
+        {bloco && precacheConcluidos > 0 && precacheConcluidos < questoes.length && (
+          <span className="font-mono text-[10px] text-accent">IA em cache: {precacheConcluidos}/{questoes.length}</span>
+        )}
       </div>
 
       {bloco && (
@@ -529,7 +566,7 @@ export function PracticeSession({
                 </div>
               )}
 
-              <FormattedText
+              <HighlightableText
                 text={questao.enunciado}
                 className="mt-5 text-base leading-relaxed text-text-primary"
               />
