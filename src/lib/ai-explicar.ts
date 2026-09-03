@@ -29,7 +29,7 @@ sem preâmbulo) com exatamente estas chaves:
  "confianca_leitura": "alta" | "media" | "baixa"
 }`;
 
-async function chamarProvedorIA(systemPrompt: string, userPrompt: string) {
+async function chamarProvedorIA(systemPrompt: string, userPrompt: string, formatoJson = true) {
   const apiKey = (process.env.RETA_FINAL_AI_API_KEY || process.env.AI_API_KEY)?.trim();
   const endpoint = (process.env.RETA_FINAL_AI_ENDPOINT || process.env.AI_ENDPOINT)?.trim();
   if (!apiKey || !endpoint) {
@@ -52,7 +52,7 @@ async function chamarProvedorIA(systemPrompt: string, userPrompt: string) {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      response_format: { type: "json_object" },
+      ...(formatoJson ? { response_format: { type: "json_object" } } : {}),
       temperature: 0.2,
     }),
   });
@@ -69,7 +69,18 @@ async function chamarProvedorIA(systemPrompt: string, userPrompt: string) {
   }
 
   const limpo = text.trim().replace(/^```(?:json)?\n?|```$/g, "");
-  return JSON.parse(limpo);
+  return formatoJson ? JSON.parse(limpo) : limpo;
+}
+
+const EXPLICAR_TEXTO_SYSTEM = `Você é um colega médico explicando um texto para outro médico colega ou interno.
+Use palavras claras, fáceis e objetivas. Explique o contexto clínico, os termos importantes e o que o texto está descrevendo.
+Não invente dados, não dê uma resposta de prova e não revele gabarito. Responda em português do Brasil, em parágrafos curtos.`;
+
+export async function explicarTextoIA(texto: string, alternativas?: string[]) {
+  const complemento = alternativas?.length
+    ? `\n\nALTERNATIVAS:\n${alternativas.join("\n")}`
+    : "";
+  return chamarProvedorIA(EXPLICAR_TEXTO_SYSTEM, `TEXTO A EXPLICAR:\n${texto}${complemento}`, false) as Promise<string>;
 }
 
 export async function explicarQuestaoIA(

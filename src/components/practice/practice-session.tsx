@@ -7,6 +7,7 @@ import {
   X,
   Loader2,
   Sparkles,
+  MessageCircle,
   TriangleAlert,
   ChevronLeft,
   ChevronRight,
@@ -205,6 +206,9 @@ export function PracticeSession({
   );
   const [explicando, setExplicando] = useState(false);
   const [aiErro, setAiErro] = useState<string | null>(null);
+  const [textoExplicado, setTextoExplicado] = useState<Record<string, string>>({});
+  const [explicandoTexto, setExplicandoTexto] = useState<"enunciado" | "tudo" | null>(null);
+  const [erroTexto, setErroTexto] = useState<string | null>(null);
   const [categoriaAberta, setCategoriaAberta] = useState(false);
   const [categoriaQuestaoId, setCategoriaQuestaoId] = useState<string | null>(
     null
@@ -380,6 +384,28 @@ export function PracticeSession({
     }
   }
 
+  async function handleExplicarTexto(tudo: boolean) {
+    setExplicandoTexto(tudo ? "tudo" : "enunciado");
+    setErroTexto(null);
+    try {
+      const res = await fetch("/api/explicar-texto", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          texto: questao.enunciado,
+          alternativas: tudo ? questao.alternativas.map((alt) => `${alt.letra}) ${alt.texto}`) : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.erro || "Falha ao explicar o texto.");
+      setTextoExplicado((prev) => ({ ...prev, [questao.id]: json.explicacao }));
+    } catch (error) {
+      setErroTexto(error instanceof Error ? error.message : "Falha ao explicar o texto.");
+    } finally {
+      setExplicandoTexto(null);
+    }
+  }
+
   function goPrev() {
     setAiErro(null);
     setIndex((i) => (i - 1 + order.length) % order.length);
@@ -495,22 +521,19 @@ export function PracticeSession({
                   </div>
                 </div>
 
-                {hierarquia.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setCategoriaAberta((v) => !v)}
-                    aria-label="Mostrar categoria"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent"
-                  >
-                    <ChevronDown
-                      size={14}
-                      className={cn(
-                        "transition-transform",
-                        categoriaAberta && "rotate-180"
-                      )}
-                    />
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button type="button" onClick={() => handleExplicarTexto(false)} disabled={explicandoTexto !== null} className="flex items-center gap-1 rounded-full border border-accent/30 px-2.5 py-1 font-mono text-[10px] text-accent hover:bg-accent/10 disabled:opacity-50">
+                    {explicandoTexto === "enunciado" ? <Loader2 size={11} className="animate-spin" /> : <MessageCircle size={11} />} Explique
                   </button>
-                )}
+                  <button type="button" onClick={() => handleExplicarTexto(true)} disabled={explicandoTexto !== null} className="flex items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 font-mono text-[10px] text-text-secondary hover:border-accent hover:text-accent disabled:opacity-50">
+                    {explicandoTexto === "tudo" ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Explique tudo
+                  </button>
+                  {hierarquia.length > 1 && (
+                    <button type="button" onClick={() => setCategoriaAberta((v) => !v)} aria-label="Mostrar categoria" className="flex h-7 w-7 items-center justify-center rounded-full border border-border-strong text-text-tertiary hover:border-accent hover:text-accent">
+                      <ChevronDown size={14} className={cn("transition-transform", categoriaAberta && "rotate-180")} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {categoriaAberta && hierarquia.length > 1 && (
@@ -578,6 +601,14 @@ export function PracticeSession({
                 className="mt-5 text-base leading-relaxed text-text-primary"
                 storageKey={questao.id}
               />
+
+              {textoExplicado[questao.id] && (
+                <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/5 p-4">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">Explicação do texto</p>
+                  <FormattedText text={textoExplicado[questao.id]} className="mt-2 text-sm leading-relaxed text-text-secondary" />
+                </div>
+              )}
+              {erroTexto && <p className="mt-3 text-xs text-coral-500">{erroTexto}</p>}
 
               <div className="mt-6 flex flex-col gap-3">
                 {questao.alternativas.map((alt) => {
