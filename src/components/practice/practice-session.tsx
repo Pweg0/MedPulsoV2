@@ -169,7 +169,13 @@ function altExplicacao(alt: Alternativa) {
   return alt.explicacao;
 }
 
-export function PracticeSession({ questoes }: { questoes: Questao[] }) {
+export function PracticeSession({
+  questoes,
+  prevalenciaPorQuestao = {},
+}: {
+  questoes: Questao[];
+  prevalenciaPorQuestao?: Record<string, { prevalencia: number; tema: string }>;
+}) {
   const { user } = useAuth();
   const mounted = useMounted();
   const [order] = useState(() => shuffle(questoes));
@@ -203,6 +209,7 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
   const selected = answers[questao.id] ?? null;
   const answered = selected !== null;
   const ai = aiExplicacoes[questao.id];
+  const prevalencia = prevalenciaPorQuestao[questao.id];
   const disciplinaHierarquia = questao.disciplina
     ? questao.disciplina.split(" > ").map((s) => s.trim())
     : [];
@@ -445,6 +452,28 @@ export function PracticeSession({ questoes }: { questoes: Questao[] }) {
                       </span>
                     </span>
                   ))}
+                </div>
+              )}
+
+              {prevalencia && (
+                <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                  <div className="flex items-center justify-between gap-3 text-[11px]">
+                    <span className="font-mono uppercase tracking-wider text-accent">
+                      Prevalência · {prevalencia.tema}
+                    </span>
+                    <span className="font-mono font-semibold text-accent">
+                      {Math.round(prevalencia.prevalencia)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-accent/15">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, prevalencia.prevalencia))}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-text-tertiary">
+                    Presente em aproximadamente {Math.round(prevalencia.prevalencia)}% das edições analisadas.
+                  </p>
                 </div>
               )}
 

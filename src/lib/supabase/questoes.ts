@@ -18,3 +18,9 @@ export type Questao = {
   explicacao_gerada_em?: string | null;
   created_at: string;
 };
+
+export type RetaFinalQuestao = Questao & {
+  prevalencia: number;
+  tema: string;
+  justificativa: string | null;
+};

@@ -26,6 +26,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, live: true },
   { href: "/estudar", label: "Questões", icon: BookOpenCheck, live: true },
   { href: "/simulados", label: "Simulados", icon: FileText, live: true },
+  { href: "/reta-final", label: "Reta Final Revalida", icon: GraduationCap, live: true },
   { href: "#", label: "Material de Apoio", icon: GraduationCap, live: false },
   { href: "#", label: "Cronograma", icon: CalendarDays, live: false },
   { href: "/flashcards", label: "Flashcards", icon: Layers, live: true },

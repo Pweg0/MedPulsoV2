@@ -20,6 +20,9 @@
 # production
 /build
 
+# PDFs locais usados apenas pela análise da reta final
+/reta-final-revalida/*.pdf
+
 # misc
 .DS_Store
 *.pem
