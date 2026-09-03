@@ -30,8 +30,8 @@ sem preâmbulo) com exatamente estas chaves:
 }`;
 
 async function chamarProvedorIA(systemPrompt: string, userPrompt: string) {
-  const apiKey = process.env.RETA_FINAL_AI_API_KEY || process.env.AI_API_KEY;
-  const endpoint = process.env.RETA_FINAL_AI_ENDPOINT || process.env.AI_ENDPOINT;
+  const apiKey = (process.env.RETA_FINAL_AI_API_KEY || process.env.AI_API_KEY)?.trim();
+  const endpoint = (process.env.RETA_FINAL_AI_ENDPOINT || process.env.AI_ENDPOINT)?.trim();
   if (!apiKey || !endpoint) {
     throw new Error("AI_ENDPOINT e/ou AI_API_KEY não configurados.");
   }
