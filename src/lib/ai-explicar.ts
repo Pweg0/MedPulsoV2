@@ -42,7 +42,9 @@ async function chamarProvedorIA(systemPrompt: string, userPrompt: string) {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://medpulso.vercel.app",
+      "X-Title": "MedPulso.ia",
     },
     body: JSON.stringify({
       model,
