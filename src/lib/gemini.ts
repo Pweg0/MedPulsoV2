@@ -19,8 +19,16 @@ ministerial onde ela não existe: muitas questões são raciocínio puro, e inve
 portaria é pior que não citar nenhuma. Nunca cite número de portaria ou PCDT que você não
 tenha certeza — prefira nomear o documento.
 
-Se a prova é antiga e o protocolo mudou depois, explique pela norma vigente na época e
-registre a mudança em nota_de_atualizacao.
+Se a prova é antiga e o protocolo ou diretriz mudou depois, explique pela norma vigente na
+época e registre a mudança em nota_de_atualizacao. Essa nota é para orientar a conduta atual,
+não apenas para alertar que houve uma mudança: cite o nome do protocolo/diretriz vigente e,
+se souber com segurança, seu ano ou versão; diga objetivamente o que era feito na época, o que
+mudou e qual é a conduta atual, incluindo esquemas, critérios, doses, duração ou indicações
+novas relevantes para esta questão. No exemplo de tratamento preventivo, não escreva apenas
+"há esquemas adicionais": nomeie os esquemas atuais e explique quando cada um é indicado.
+Use no máximo 3 frases curtas, mas densas e específicas. Se não conseguir identificar a
+recomendação atual com segurança, omita nota_de_atualizacao em vez de inventar ou fazer um
+alerta vago como "o protocolo mudou".
 
 Se você achar que o gabarito está errado ou a questão é ambígua, marque
 discordo_do_gabarito: true e explique em motivo_discordancia. NÃO invente justificativa
@@ -298,4 +306,3 @@ export async function indexarProvaComGemini({
     );
   }
 }
-

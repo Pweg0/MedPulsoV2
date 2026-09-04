@@ -7,7 +7,9 @@ import { explicarQuestaoIA } from "@/lib/ai-explicar";
 import type { Alternativa } from "@/lib/supabase/questoes";
 
 const TABELAS = { questoes: "questoes", simulado: "simulado_questoes" } as const;
+const EXPLICACAO_PROMPT_VERSION = 2;
 type Fonte = keyof typeof TABELAS;
+type ExplicacaoEmCache = ExplicacaoIA & { _prompt_version?: number };
 
 function montarComentario(explicacao: ExplicacaoIA) {
   const partes: string[] = [];
@@ -42,8 +44,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erro: "Questão não encontrada." }, { status: 404 });
   }
 
-  if (questao.explicacao_ia) {
-    return NextResponse.json({ explicacao: questao.explicacao_ia, cache: true });
+  const explicacaoEmCache = questao.explicacao_ia as ExplicacaoEmCache | null;
+  if (explicacaoEmCache?._prompt_version === EXPLICACAO_PROMPT_VERSION) {
+    return NextResponse.json({ explicacao: explicacaoEmCache, cache: true });
   }
 
   if (!(process.env.RETA_FINAL_AI_API_KEY || process.env.AI_API_KEY) || !(process.env.RETA_FINAL_AI_ENDPOINT || process.env.AI_ENDPOINT)) {
@@ -75,8 +78,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const explicacaoAtualizada: ExplicacaoEmCache = {
+    ...explicacao,
+    _prompt_version: EXPLICACAO_PROMPT_VERSION,
+  };
   const refutacaoPorLetra = new Map(
-    explicacao.refutacoes.map((r) => [r.letra, r.erro])
+    explicacaoAtualizada.refutacoes.map((r) => [r.letra, r.erro])
   );
   const novasAlternativas: Alternativa[] = (
     questao.alternativas as Alternativa[]
@@ -93,11 +100,11 @@ export async function POST(request: NextRequest) {
     .update({
       alternativas: novasAlternativas,
       ...(fonte === "questoes"
-        ? { comentario_geral: montarComentario(explicacao) || questao.comentario_geral }
+        ? { comentario_geral: montarComentario(explicacaoAtualizada) || questao.comentario_geral }
         : {}),
-      explicacao_ia: explicacao,
+      explicacao_ia: explicacaoAtualizada,
       explicacao_gerada_em: new Date().toISOString(),
-      disciplina: questao.disciplina ?? explicacao.area,
+       disciplina: questao.disciplina ?? explicacaoAtualizada.area,
     })
     .eq("id", questaoId);
 
@@ -105,5 +112,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erro: updateError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ explicacao, cache: false });
+  return NextResponse.json({ explicacao: explicacaoAtualizada, cache: false });
 }

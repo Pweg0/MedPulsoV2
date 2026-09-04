@@ -85,23 +85,23 @@ export default async function RetaFinalPage({
   }
 
   return (
-    <Container className="max-w-none py-12 lg:px-12">
+    <Container className="max-w-none px-4 py-8 sm:px-6 sm:py-12 lg:px-12">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="font-mono text-xs uppercase tracking-wider text-accent">11 dias · foco total</span>
-          <h1 className="mt-2 font-display text-3xl tracking-tight text-text-primary">Reta Final Revalida</h1>
+          <h1 className="mt-2 font-display text-2xl tracking-tight text-text-primary sm:text-3xl">Reta Final Revalida</h1>
           <p className="mt-2 max-w-2xl text-sm text-text-tertiary">
             Questões do banco relacionadas aos temas mais recorrentes nas edições anteriores. Os PDFs foram usados apenas para análise de prevalência.
           </p>
         </div>
         {!iniciou && (
-          <form className="flex flex-wrap items-center gap-2 text-xs" method="get">
+          <form className="flex w-full flex-wrap items-center gap-2 text-xs sm:w-auto" method="get">
             <input type="hidden" name="iniciar" value="1" />
             <label className="text-text-tertiary" htmlFor="quantidade">Questões</label>
-            <select id="quantidade" name="quantidade" defaultValue={String(quantidade)} className="rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary">
+            <select id="quantidade" name="quantidade" defaultValue={String(quantidade)} className="min-w-0 flex-1 rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary sm:flex-none">
               {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <select name="filtro" defaultValue="novas" className="rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary">
+            <select name="filtro" defaultValue="novas" className="min-w-0 flex-1 rounded-lg border border-border-strong bg-bg-elevated px-2.5 py-2 text-text-primary sm:flex-none">
               <option value="novas">Somente não respondidas</option>
               <option value="erradas">Somente erradas</option>
               <option value="todas">Mostrar todas</option>
@@ -110,11 +110,11 @@ export default async function RetaFinalPage({
               <input type="checkbox" name="randomizar" value="1" defaultChecked />
               randomizar
             </label>
-            <details className="relative basis-full sm:basis-auto">
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border-strong bg-bg-elevated px-3 py-2 text-text-secondary">
+            <details className="relative w-full sm:w-auto">
+              <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-bg-elevated px-3 py-2 text-text-secondary sm:justify-start">
                 <Menu size={14} /> áreas e temas
               </summary>
-              <div className="absolute right-0 z-10 mt-2 max-h-[60vh] w-[min(92vw,420px)] overflow-y-auto rounded-2xl border border-border bg-bg-elevated p-3 shadow-xl">
+              <div className="absolute left-0 z-10 mt-2 max-h-[60vh] w-[min(92vw,420px)] overflow-y-auto rounded-2xl border border-border bg-bg-elevated p-3 shadow-xl sm:left-auto sm:right-0">
                 <p className="mb-3 text-[11px] text-text-tertiary">Sem seleção, todas as áreas entram. Com seleção, a quantidade é distribuída igualmente entre os grupos.</p>
                 {areas.map((area) => (
                   <div key={area} className="flex items-start gap-2 border-b border-border py-2 last:border-0">
@@ -136,7 +136,7 @@ export default async function RetaFinalPage({
                 ))}
               </div>
             </details>
-            <button type="submit" className="rounded-lg bg-accent px-3 py-2 font-medium text-on-accent">Iniciar bloco de revisão</button>
+            <button type="submit" className="w-full rounded-lg bg-accent px-3 py-2 font-medium text-on-accent sm:w-auto">Iniciar bloco de revisão</button>
           </form>
         )}
       </div>

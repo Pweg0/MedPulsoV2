@@ -57,8 +57,8 @@ export default async function SimuladoPage({
   }
 
   return (
-    <Container className="max-w-3xl py-10">
-      <div className="flex items-center justify-between gap-3">
+    <Container className="max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/simulados"
           className="flex items-center gap-1.5 font-mono text-xs text-text-tertiary hover:text-accent"

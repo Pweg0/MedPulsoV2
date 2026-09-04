@@ -198,7 +198,7 @@ export function SimuladoSession({
           type="button"
           onClick={() => setIndex((i) => (i - 1 + questoes.length) % questoes.length)}
           aria-label="Questão anterior"
-          className="flex h-10 w-10 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent"
+          className="flex h-9 w-9 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent sm:h-10 sm:w-10"
         >
           <ChevronLeft size={18} />
         </button>
@@ -211,7 +211,7 @@ export function SimuladoSession({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8"
+                className="rounded-3xl border border-border bg-bg-elevated p-4 sm:p-8"
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="font-mono text-xs text-text-tertiary">
@@ -368,7 +368,7 @@ export function SimuladoSession({
           type="button"
           onClick={() => setIndex((i) => (i + 1) % questoes.length)}
           aria-label="Próxima questão"
-          className="flex h-10 w-10 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent"
+          className="flex h-9 w-9 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent sm:h-10 sm:w-10"
         >
           <ChevronRight size={18} />
         </button>

@@ -9,6 +9,8 @@ import {
   Sparkles,
   MessageCircle,
   TriangleAlert,
+  Flag,
+  Scissors,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -219,6 +221,11 @@ export function PracticeSession({
     Record<string, Record<string, NivelAvaliacao>>
   >({});
   const [precacheConcluidos, setPrecacheConcluidos] = useState(0);
+  const [descartadas, setDescartadas] = useState<Record<string, boolean>>({});
+  const [reporteAberto, setReporteAberto] = useState(false);
+  const [reportando, setReportando] = useState(false);
+  const [reportadoQuestaoId, setReportadoQuestaoId] = useState<string | null>(null);
+  const [erroReporte, setErroReporte] = useState<string | null>(null);
   const precacheIniciado = useRef(false);
 
   useEffect(() => {
@@ -342,6 +349,32 @@ export function PracticeSession({
     }
   }
 
+  function alternarDescarte(letra: string) {
+    const chave = `${questao.id}:${letra}`;
+    setDescartadas((prev) => ({ ...prev, [chave]: !prev[chave] }));
+  }
+
+  async function reportarQuestao(form: HTMLFormElement) {
+    setReportando(true);
+    setErroReporte(null);
+    const motivo = new FormData(form).get("motivo");
+    try {
+      const response = await fetch("/api/questoes/reportar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ questaoId: questao.id, motivo }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.erro || "Falha ao reportar questão.");
+      setReportadoQuestaoId(questao.id);
+      setReporteAberto(false);
+    } catch (error) {
+      setErroReporte(error instanceof Error ? error.message : "Falha ao reportar questão.");
+    } finally {
+      setReportando(false);
+    }
+  }
+
   function handleAvaliarPonto(ponto: string, verbo: string, nivel: NivelAvaliacao) {
     const idTentativa = tentativaIds[questao.id];
     const temaAtual = ai?.tema;
@@ -432,7 +465,7 @@ export function PracticeSession({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-xs text-text-tertiary">
           {answeredCount} respondida{answeredCount === 1 ? "" : "s"} nesta
           sessão
@@ -483,7 +516,7 @@ export function PracticeSession({
           type="button"
           onClick={goPrev}
           aria-label="Questão anterior"
-          className="flex h-10 w-10 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent"
+          className="flex h-9 w-9 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent sm:h-10 sm:w-10"
         >
           <ChevronLeft size={18} />
         </button>
@@ -496,10 +529,10 @@ export function PracticeSession({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8"
+              className="rounded-3xl border border-border bg-bg-elevated p-4 sm:p-8"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
                   <span className="font-mono text-xs text-text-tertiary">
                     Questão {index + 1}
                   </span>
@@ -521,11 +554,11 @@ export function PracticeSession({
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <button type="button" onClick={() => handleExplicarTexto(false)} disabled={explicandoTexto !== null} className="flex items-center gap-1 rounded-full border border-accent/30 px-2.5 py-1 font-mono text-[10px] text-accent hover:bg-accent/10 disabled:opacity-50">
+                <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:justify-end">
+                  <button type="button" onClick={() => handleExplicarTexto(false)} disabled={explicandoTexto !== null} className="flex items-center gap-1 whitespace-nowrap rounded-full border border-accent/30 px-2.5 py-1 font-mono text-[10px] text-accent hover:bg-accent/10 disabled:opacity-50">
                     {explicandoTexto === "enunciado" ? <Loader2 size={11} className="animate-spin" /> : <MessageCircle size={11} />} Explique
                   </button>
-                  <button type="button" onClick={() => handleExplicarTexto(true)} disabled={explicandoTexto !== null} className="flex items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 font-mono text-[10px] text-text-secondary hover:border-accent hover:text-accent disabled:opacity-50">
+                  <button type="button" onClick={() => handleExplicarTexto(true)} disabled={explicandoTexto !== null} className="flex items-center gap-1 whitespace-nowrap rounded-full border border-border-strong px-2.5 py-1 font-mono text-[10px] text-text-secondary hover:border-accent hover:text-accent disabled:opacity-50">
                     {explicandoTexto === "tudo" ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Explique tudo
                   </button>
                   {hierarquia.length > 1 && (
@@ -533,8 +566,39 @@ export function PracticeSession({
                       <ChevronDown size={14} className={cn("transition-transform", categoriaAberta && "rotate-180")} />
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setReporteAberto((v) => !v)}
+                    disabled={reportadoQuestaoId === questao.id}
+                    className="flex items-center gap-1 whitespace-nowrap rounded-full border border-border-strong px-2.5 py-1 font-mono text-[10px] text-text-tertiary hover:border-coral-500 hover:text-coral-500 disabled:cursor-default disabled:opacity-70"
+                  >
+                    <Flag size={11} /> {reportadoQuestaoId === questao.id ? "Reportada" : "Reportar"}
+                  </button>
                 </div>
               </div>
+
+              {reporteAberto && reportadoQuestaoId !== questao.id && (
+                <form
+                  className="mt-3 flex flex-col gap-2 rounded-xl border border-border-strong bg-bg-inset p-3 sm:flex-row sm:items-center"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void reportarQuestao(event.currentTarget);
+                  }}
+                >
+                  <label htmlFor={`motivo-${questao.id}`} className="text-xs text-text-secondary">Por que deseja reportar?</label>
+                  <select id={`motivo-${questao.id}`} name="motivo" defaultValue="Outro" className="min-w-0 flex-1 rounded-lg border border-border-strong bg-bg-elevated px-2 py-1.5 text-xs text-text-primary">
+                    <option>Gabarito incorreto</option>
+                    <option>Enunciado com problema</option>
+                    <option>Alternativa duplicada ou ilegível</option>
+                    <option>Protocolo desatualizado</option>
+                    <option>Outro</option>
+                  </select>
+                  <button type="submit" disabled={reportando} className="rounded-lg bg-coral-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+                    {reportando ? "Enviando..." : "Enviar reporte"}
+                  </button>
+                </form>
+              )}
+              {erroReporte && <p className="mt-2 text-xs text-coral-500">{erroReporte}</p>}
 
               {categoriaAberta && hierarquia.length > 1 && (
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -557,7 +621,7 @@ export function PracticeSession({
               {prevalencia && (
                 <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3">
                   <div className="flex items-center justify-between gap-3 text-[11px]">
-                    <span className="font-mono uppercase tracking-wider text-accent">
+                    <span className="min-w-0 truncate font-mono uppercase tracking-wider text-accent">
                       Prevalência · {prevalencia.tema}
                     </span>
                     <span className="font-mono font-semibold text-accent">
@@ -642,13 +706,14 @@ export function PracticeSession({
                       : null;
 
                   return (
-                    <div key={alt.letra}>
+                    <div key={alt.letra} className="flex items-start gap-2">
                       <button
                         type="button"
                         disabled={answered}
                         onClick={() => handleSelect(alt.letra)}
                         className={cn(
-                          "flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
+                          "flex min-w-0 flex-1 items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
+                          descartadas[`${questao.id}:${alt.letra}`] && "opacity-45 line-through",
                           !answered &&
                             "border-border-strong hover:border-accent cursor-pointer",
                           showState &&
@@ -701,6 +766,19 @@ export function PracticeSession({
                             {decodeEntities(alt.texto)}
                           </span>
                         </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar" : "Descartar"} alternativa ${alt.letra}`}
+                        aria-pressed={!!descartadas[`${questao.id}:${alt.letra}`]}
+                        title={descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar alternativa" : "Descartar alternativa"}
+                        onClick={() => alternarDescarte(alt.letra)}
+                        className={cn(
+                          "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent",
+                          descartadas[`${questao.id}:${alt.letra}`] && "border-accent bg-accent/10 text-accent"
+                        )}
+                      >
+                        <Scissors size={15} />
                       </button>
 
                       {showState && explicacaoTexto && (
@@ -948,18 +1026,18 @@ export function PracticeSession({
           type="button"
           onClick={goNext}
           aria-label="Próxima questão"
-          className="flex h-10 w-10 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent"
+          className="flex h-9 w-9 shrink-0 self-center items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-text-tertiary transition-colors hover:border-accent hover:text-accent sm:h-10 sm:w-10"
         >
           <ChevronRight size={18} />
         </button>
       </div>
 
       {bloco && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="mt-6 flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <a href="/reta-final" className="font-mono text-xs text-text-tertiary hover:text-accent">
             Encerrar bloco
           </a>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
             <span className="font-mono text-xs text-text-secondary">
               {answeredCount}/{questoes.length} · {answeredCount ? Math.round((correctCount / answeredCount) * 100) : 0}% de acerto
             </span>

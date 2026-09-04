@@ -23,7 +23,7 @@ sem preâmbulo) com exatamente estas chaves:
  "pontos_raciocinio": [{"ponto": string, "verbo": "identificar" | "correlacionar" | "diferenciar" | "associar" | "recordar"}] (SEMPRE preencher, 2 a 4 itens),
  "refutacoes": [{"letra": string, "tipo_erro": "conduta_certa_momento_errado" | "exame_indicado_mas_nao_o_primeiro" | "diagnostico_descartado_por_achado" | "dose_via_ou_duracao_errada" | "conduta_de_outro_nivel_de_atencao" | "contraindicado_no_caso" | "viola_norma_ou_legislacao" | "conceito_trocado" | "incompleto", "erro": string}],
  "pegadinha": string (opcional),
- "nota_de_atualizacao": string (opcional),
+  "nota_de_atualizacao": string (opcional; somente quando houver mudança real e verificável: cite o protocolo/diretriz vigente, o que a prova cobrava, o que mudou e a conduta atual específica; nunca escreva apenas que "o protocolo mudou"),
  "discordo_do_gabarito": boolean,
  "motivo_discordancia": string (opcional),
  "confianca_leitura": "alta" | "media" | "baixa"
