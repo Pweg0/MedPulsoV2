@@ -392,7 +392,7 @@ export function PracticeSession({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          questaoId: questao.id,
+          questaoId: String(questao.id),
           incluirAlternativas: tudo,
         }),
       });

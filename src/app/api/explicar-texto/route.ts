@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
   const body = await request.json();
-  const questaoId = typeof body.questaoId === "string" ? body.questaoId : "";
+  const questaoId = body.questaoId != null ? String(body.questaoId).trim() : "";
   const incluirAlternativas = body.incluirAlternativas === true;
   if (!questaoId) return NextResponse.json({ erro: "questaoId ausente." }, { status: 400 });
 
