@@ -6,8 +6,9 @@
 > uma sessão longa que foi do MVP simples até filtros avançados + modo
 > SIMULADO com indexação de PDF por IA. Atualizado em 2026-08-27 depois do
 > rebrand visual petrol/teal, consolidação da IA de explicação em
-> provedor único, e limite de 5 perguntas pra visitante anônimo na
-> landing.
+> provedor único, limite de 5 perguntas pra visitante anônimo na landing,
+> blocos persistentes da Reta Final e cache compartilhado das explicações de
+> texto.
 
 ## O que é
 
@@ -62,6 +63,8 @@ vs. treino do modelo — sempre checar `node_modules/next/dist/docs/` antes
 de usar uma API que "deveria" funcionar de um jeito.
 
 ## O que já está pronto e funcionando
+
+**Atualizado em 2026-09-04.**
 
 ### Site de marketing (`src/app/(marketing)/`)
 Landing page, `/precos`, `/login`, `/cadastro`. Tema claro/escuro.
@@ -222,6 +225,24 @@ Fluxo: cache-check na tabela certa → se vazio, chama `AI_ENDPOINT` com
 unavailable" no provedor; corrigido testando com `curl` direto). Confirmar
 que a mesma correção de `AI_ENDPOINT` foi aplicada nas env vars do Vercel
 (local e produção não sincronizam sozinhos) e que um redeploy foi feito.
+
+### Explicação contextual do texto
+Na sessão de questões (`components/practice/practice-session.tsx`) cada questão
+tem dois botões:
+- **Explique**: envia somente o enunciado.
+- **Explique tudo**: envia o enunciado e as alternativas, sem pedir/revelar o
+  gabarito.
+
+A rota `src/app/api/explicar-texto/route.ts` consulta primeiro o cache global no
+Supabase e só chama o provedor de IA quando o campo correspondente está vazio.
+Depois grava a resposta na tabela `questoes`, portanto a explicação gerada por
+um usuário fica pronta para todos os demais usuários. Os campos foram criados
+em `supabase/migrations/0023_cache_explicacao_texto.sql`:
+`explicacao_texto_ia`, `explicacao_tudo_ia` e suas respectivas datas de geração.
+O usuário confirmou a aplicação dessa migration no Supabase.
+
+**Status:** código validado com lint/build; falta teste real confirmando que o
+segundo acesso retorna `cache: true`.
 
 ### Mapa de Raciocínio + Caderno de Revisão + Flashcards automáticos (novo, 2026-08-27)
 Inspirado numa dinâmica de plataforma concorrente que o usuário mostrou por
@@ -501,6 +522,8 @@ chegar sem sessão de cookie).
       e indexar as 7 provas restantes
 - [ ] Confirmar se e-mail de confirmação continua desativado no Supabase
 - [ ] Decidir sobre SMTP próprio (Resend ou similar) antes de lançar
+- [ ] Testar **Explique** e **Explique tudo** em uma questão e repetir a chamada
+      para confirmar que a segunda resposta vem do cache, sem nova chamada à IA
 
 **Funcionalidades da visão original ainda não construídas**:
 - [ ] Dashboard "Seu progresso" com gráfico real por área
