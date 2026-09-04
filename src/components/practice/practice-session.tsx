@@ -392,13 +392,13 @@ export function PracticeSession({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          texto: questao.enunciado,
-          alternativas: tudo ? questao.alternativas.map((alt) => `${alt.letra}) ${alt.texto}`) : undefined,
+          questaoId: questao.id,
+          incluirAlternativas: tudo,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.erro || "Falha ao explicar o texto.");
-      setTextoExplicado((prev) => ({ ...prev, [questao.id]: json.explicacao }));
+      setTextoExplicado((prev) => ({ ...prev, [`${questao.id}:${tudo ? "tudo" : "enunciado"}`]: json.explicacao }));
     } catch (error) {
       setErroTexto(error instanceof Error ? error.message : "Falha ao explicar o texto.");
     } finally {
@@ -602,10 +602,16 @@ export function PracticeSession({
                 storageKey={questao.id}
               />
 
-              {textoExplicado[questao.id] && (
+              {textoExplicado[`${questao.id}:enunciado`] && (
                 <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/5 p-4">
                   <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">Explicação do texto</p>
-                  <FormattedText text={textoExplicado[questao.id]} className="mt-2 text-sm leading-relaxed text-text-secondary" />
+                  <FormattedText text={textoExplicado[`${questao.id}:enunciado`]} className="mt-2 text-sm leading-relaxed text-text-secondary" />
+                </div>
+              )}
+              {textoExplicado[`${questao.id}:tudo`] && (
+                <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/5 p-4">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">Explicação do enunciado e alternativas</p>
+                  <FormattedText text={textoExplicado[`${questao.id}:tudo`]} className="mt-2 text-sm leading-relaxed text-text-secondary" />
                 </div>
               )}
               {erroTexto && <p className="mt-3 text-xs text-coral-500">{erroTexto}</p>}
