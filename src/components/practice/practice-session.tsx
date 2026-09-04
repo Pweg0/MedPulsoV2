@@ -768,19 +768,21 @@ export function PracticeSession({
                           </span>
                         </span>
                         </button>
-                        <button
-                          type="button"
-                          aria-label={`${descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar" : "Descartar"} alternativa ${alt.letra}`}
-                          aria-pressed={!!descartadas[`${questao.id}:${alt.letra}`]}
-                          title={descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar alternativa" : "Descartar alternativa"}
-                          onClick={() => alternarDescarte(alt.letra)}
-                          className={cn(
-                            "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent",
-                            descartadas[`${questao.id}:${alt.letra}`] && "border-accent bg-accent/10 text-accent"
-                          )}
-                        >
-                          <Scissors size={15} />
-                        </button>
+                        {!answered && (
+                          <button
+                            type="button"
+                            aria-label={`${descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar" : "Descartar"} alternativa ${alt.letra}`}
+                            aria-pressed={!!descartadas[`${questao.id}:${alt.letra}`]}
+                            title={descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar alternativa" : "Descartar alternativa"}
+                            onClick={() => alternarDescarte(alt.letra)}
+                            className={cn(
+                              "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent",
+                              descartadas[`${questao.id}:${alt.letra}`] && "border-accent bg-accent/10 text-accent"
+                            )}
+                          >
+                            <Scissors size={15} />
+                          </button>
+                        )}
                       </div>
 
                       {showState && explicacaoTexto && (
