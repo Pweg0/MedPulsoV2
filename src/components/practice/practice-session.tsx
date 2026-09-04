@@ -706,27 +706,28 @@ export function PracticeSession({
                       : null;
 
                   return (
-                    <div key={alt.letra} className="flex items-start gap-2">
-                      <button
-                        type="button"
-                        disabled={answered}
-                        onClick={() => handleSelect(alt.letra)}
-                        className={cn(
-                          "flex min-w-0 flex-1 items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
-                          descartadas[`${questao.id}:${alt.letra}`] && "opacity-45 line-through",
-                          !answered &&
-                            "border-border-strong hover:border-accent cursor-pointer",
-                          showState &&
-                            !alt.correta &&
-                            !isSelected &&
-                            "border-border opacity-50",
-                          showState && alt.correta && "border-vital-500 bg-vital-500/10",
-                          showState &&
-                            isSelected &&
-                            !alt.correta &&
-                            "border-coral-500 bg-coral-500/10"
-                        )}
-                      >
+                    <div key={alt.letra}>
+                      <div className="flex items-start gap-2">
+                        <button
+                          type="button"
+                          disabled={answered}
+                          onClick={() => handleSelect(alt.letra)}
+                          className={cn(
+                            "flex min-w-0 flex-1 items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
+                            descartadas[`${questao.id}:${alt.letra}`] && "opacity-45 line-through",
+                            !answered &&
+                              "border-border-strong hover:border-accent cursor-pointer",
+                            showState &&
+                              !alt.correta &&
+                              !isSelected &&
+                              "border-border opacity-50",
+                            showState && alt.correta && "border-vital-500 bg-vital-500/10",
+                            showState &&
+                              isSelected &&
+                              !alt.correta &&
+                              "border-coral-500 bg-coral-500/10"
+                          )}
+                        >
                         <span
                           className={cn(
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-xs",
@@ -766,20 +767,21 @@ export function PracticeSession({
                             {decodeEntities(alt.texto)}
                           </span>
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar" : "Descartar"} alternativa ${alt.letra}`}
-                        aria-pressed={!!descartadas[`${questao.id}:${alt.letra}`]}
-                        title={descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar alternativa" : "Descartar alternativa"}
-                        onClick={() => alternarDescarte(alt.letra)}
-                        className={cn(
-                          "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent",
-                          descartadas[`${questao.id}:${alt.letra}`] && "border-accent bg-accent/10 text-accent"
-                        )}
-                      >
-                        <Scissors size={15} />
-                      </button>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`${descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar" : "Descartar"} alternativa ${alt.letra}`}
+                          aria-pressed={!!descartadas[`${questao.id}:${alt.letra}`]}
+                          title={descartadas[`${questao.id}:${alt.letra}`] ? "Restaurar alternativa" : "Descartar alternativa"}
+                          onClick={() => alternarDescarte(alt.letra)}
+                          className={cn(
+                            "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong text-text-tertiary transition-colors hover:border-accent hover:text-accent",
+                            descartadas[`${questao.id}:${alt.letra}`] && "border-accent bg-accent/10 text-accent"
+                          )}
+                        >
+                          <Scissors size={15} />
+                        </button>
+                      </div>
 
                       {showState && explicacaoTexto && (
                         <motion.div
