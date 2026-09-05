@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/container";
 import { PracticeSession } from "@/components/practice/practice-session";
+import { DeleteBlockButton } from "@/components/reta-final/delete-block-button";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { createClient } from "@/lib/supabase/server";
 import type { RetaFinalQuestao } from "@/lib/supabase/questoes";
@@ -164,7 +165,10 @@ export default async function RetaFinalPage({
                     <p className="font-display text-lg text-text-primary">Bloco {bloco.numero}</p>
                     <p className="mt-1 text-xs text-text-tertiary">{bloco.quantidade} questões · {bloco.questoes_feitas} feitas</p>
                   </div>
-                  <span className="font-mono text-sm font-semibold text-accent">{Math.round(Number(bloco.percentual))}%</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-semibold text-accent">{Math.round(Number(bloco.percentual))}%</span>
+                    <DeleteBlockButton blocoId={bloco.id} />
+                  </div>
                 </div>
                 <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-bg-inset">
                   <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (bloco.questoes_feitas / Math.max(1, bloco.quantidade)) * 100)}%` }} />
