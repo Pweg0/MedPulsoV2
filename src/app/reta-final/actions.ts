@@ -12,11 +12,11 @@ export async function excluirBloco(formData: FormData) {
   if (!user) return;
 
   const supabase = await createClient();
-  await supabase
-    .from("reta_final_blocos")
-    .delete()
-    .eq("id", blocoId)
-    .eq("user_id", user.id);
+  const { error } = await supabase.rpc("excluir_reta_final_bloco", {
+    p_bloco_id: blocoId,
+    p_user_id: user.id,
+  });
+  if (error) throw new Error("Não foi possível apagar o bloco.");
 
   revalidatePath("/reta-final");
 }

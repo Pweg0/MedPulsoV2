@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/container";
 import { PracticeSession } from "@/components/practice/practice-session";
 import { DeleteBlockButton } from "@/components/reta-final/delete-block-button";
+import { AreaThemeFilter } from "@/components/reta-final/area-theme-filter";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { createClient } from "@/lib/supabase/server";
 import type { RetaFinalQuestao } from "@/lib/supabase/questoes";
-import { ArrowRight, Menu } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = { title: "Reta Final Revalida — MedPulso.ia" };
 
@@ -111,32 +112,7 @@ export default async function RetaFinalPage({
               <input type="checkbox" name="randomizar" value="1" defaultChecked />
               randomizar
             </label>
-            <details className="relative w-full sm:w-auto">
-              <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-bg-elevated px-3 py-2 text-text-secondary sm:justify-start">
-                <Menu size={14} /> áreas e temas
-              </summary>
-              <div className="absolute left-0 z-10 mt-2 max-h-[60vh] w-[min(92vw,420px)] overflow-y-auto rounded-2xl border border-border bg-bg-elevated p-3 shadow-xl sm:left-auto sm:right-0">
-                <p className="mb-3 text-[11px] text-text-tertiary">Sem seleção, todas as áreas entram. Com seleção, a quantidade é distribuída igualmente entre os grupos.</p>
-                {areas.map((area) => (
-                  <div key={area} className="flex items-start gap-2 border-b border-border py-2 last:border-0">
-                    <input className="mt-1" type="checkbox" name="area" value={area} />
-                    <details className="min-w-0 flex-1">
-                      <summary className="cursor-pointer text-sm font-medium text-text-primary">
-                        {area}
-                      </summary>
-                      <div className="mt-2 grid gap-1 pl-2">
-                        {temas.filter((tema) => tema.area_grande === area).map((tema) => (
-                          <label key={tema.id} className="flex items-start gap-2 text-xs text-text-secondary">
-                            <input type="checkbox" name="tema" value={tema.id} />
-                            <span>{tema.nome} <span className="font-mono text-[10px] text-accent">{Math.round(Number(tema.prevalencia))}%</span></span>
-                          </label>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
-                ))}
-              </div>
-            </details>
+            <AreaThemeFilter areas={areas} temas={temas} />
             <button type="submit" className="w-full rounded-lg bg-accent px-3 py-2 font-medium text-on-accent sm:w-auto">Iniciar bloco de revisão</button>
           </form>
         )}
